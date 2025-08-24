@@ -1,7 +1,7 @@
 // إعدادات API
 const API_URL = "https://www.goldapi.io/api/XAU/KWD";
 // ✱ ضع مفتاح GoldAPI هنا (سيتاح من حسابك المجاني)
-const API_KEY = goldapi-5z18ld4gkwkcydf4-io // ← استبدل هذا النص بالمفتاح الخاص بك
+const API_KEY = "goldapi-5z18ld4gkwkcydf4-io"; // ← استبدل هذا النص بالمفتاح الخاص بك
 
 // ثوابت
 const OUNCE_TO_GRAM = 31.1034768; // أونصة ترويسية بالجرام
