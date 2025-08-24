@@ -1,0 +1,6 @@
+<select id="apiProvider">
+  <option value="goldapi">goldapi.io (يتطلب مفتاح)</option>
+  <option value="metalsapi">metals-api.com (يتطلب مفتاح)</option>
+  <option value="metalslive" selected>metals.live (بدون مفتاح – تجريبي)</option>
+  <option value="exchangeratehost">exchangerate.host (XAU→USD – تقريبي)</option>
+</select>

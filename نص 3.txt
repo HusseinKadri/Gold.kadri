@@ -1,0 +1,305 @@
+// ثوابت
+const OUNCE_IN_GRAMS = 31.1034768;
+
+// عناصر DOM
+const els = {
+  apiProvider:     document.getElementById('apiProvider'),
+  goldApiKeyRow:   document.getElementById('goldApiKeyRow'),
+  goldApiKey:      document.getElementById('goldApiKey'),
+  metalsApiKeyRow: document.getElementById('metalsApiKeyRow'),
+  metalsApiKey:    document.getElementById('metalsApiKey'),
+  currencyCode:    document.getElementById('currencyCode'),
+  usdToCurr:       document.getElementById('usdToCurr'),
+  autoRefreshMins: document.getElementById('autoRefreshMins'),
+  status:          document.getElementById('status'),
+
+  priceOunce:      document.getElementById('priceOunce'),
+  g24:             document.getElementById('g24'),
+  lastUpdated:     document.getElementById('lastUpdated'),
+  karatTable:      document.getElementById('karatTable'),
+  feeFlat:         document.getElementById('feeFlat'),
+  feePct:          document.getElementById('feePct'),
+
+  exportCsv:       document.getElementById('exportCsv'),
+  importCsv:       document.getElementById('importCsv'),
+  resetHistory:    document.getElementById('resetHistory'),
+  refreshBtn:      document.getElementById('refreshBtn'),
+  themeToggle:     document.getElementById('themeToggle'),
+  chartCanvas:     document.getElementById('chart'),
+};
+
+// حالة
+const state = {
+  ounceUsd: 2000,
+  usdToCurr: 0.3065,   // USD -> KWD افتراضي
+  currency: 'KWD',
+  apiProvider: 'metalslive',
+  goldApiKey: '',
+  metalsApiKey: '',
+  lastUpdated: null,
+  history: [],
+  chart: null,
+  autoRefreshMins: 5,
+  _timer: null,
+};
+
+// أدوات تنسيق
+function normalizeNumber(str){ if(typeof str==='number')return str; if(!str)return NaN;
+  const map={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9',',':''};
+  return parseFloat(String(str).trim().replace(/[٠-٩,]/g,m=>map[m]??m)); }
+function fmtCurrency(val,c){ try{return new Intl.NumberFormat('ar',{style:'currency',currency:c}).format(val);}
+  catch{return new Intl.NumberFormat('ar',{maximumFractionDigits:2}).format(val)+' '+c;} }
+function fmtNumber(val,d=2){ return new Intl.NumberFormat('ar',{minimumFractionDigits:d,maximumFractionDigits:d}).format(val); }
+function todayStr(d=new Date()){ const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+function save(){
+  localStorage.setItem('goldAuto', JSON.stringify({
+    ounceUsd: state.ounceUsd, usdToCurr: state.usdToCurr, currency: state.currency,
+    apiProvider: state.apiProvider, goldApiKey: state.goldApiKey, metalsApiKey: state.metalsApiKey,
+    history: state.history, autoRefreshMins: state.autoRefreshMins,
+    theme: document.documentElement.getAttribute('data-theme') || 'dark'
+  }));
+}
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem('goldAuto')||'{}');
+    Object.assign(state,{
+      ounceUsd: d.ounceUsd ?? state.ounceUsd,
+      usdToCurr: d.usdToCurr ?? state.usdToCurr,
+      currency: d.currency ?? state.currency,
+      apiProvider: d.apiProvider ?? state.apiProvider,
+      goldApiKey: d.goldApiKey ?? state.goldApiKey,
+      metalsApiKey: d.metalsApiKey ?? state.metalsApiKey,
+      history: Array.isArray(d.history)? d.history: state.history,
+      autoRefreshMins: d.autoRefreshMins ?? state.autoRefreshMins,
+    });
+    document.documentElement.setAttribute('data-theme', d.theme || 'dark');
+  }catch{}
+}
+
+// واجهة
+function syncUI(){
+  els.apiProvider.value = state.apiProvider;
+  if (els.goldApiKey) els.goldApiKey.value = state.goldApiKey;
+  if (els.metalsApiKey) els.metalsApiKey.value = state.metalsApiKey;
+  els.currencyCode.value = state.currency;
+  els.usdToCurr.value = state.usdToCurr;
+  els.autoRefreshMins.value = state.autoRefreshMins;
+
+  els.goldApiKeyRow && (els.goldApiKeyRow.style.display = state.apiProvider==='goldapi' ? '' : 'none');
+  els.metalsApiKeyRow && (els.metalsApiKeyRow.style.display = state.apiProvider==='metalsapi' ? '' : 'none');
+}
+
+function gramPriceCurr(){
+  const ounceInCurr = state.ounceUsd * state.usdToCurr;
+  return ounceInCurr / OUNCE_IN_GRAMS;
+}
+function karatFactor(k){ return k/24; }
+function applyFees(perGram){
+  const feeFlat = normalizeNumber(els.feeFlat.value)||0;
+  const feePct  = normalizeNumber(els.feePct.value)||0;
+  return perGram*(1+feePct/100)+feeFlat;
+}
+function render(){
+  const perGram24 = gramPriceCurr();
+  els.priceOunce.textContent = fmtCurrency(state.ounceUsd * state.usdToCurr, state.currency);
+  els.g24.textContent        = fmtCurrency(perGram24, state.currency);
+  els.lastUpdated.textContent= state.lastUpdated? new Date(state.lastUpdated).toLocaleString('ar') : '—';
+
+  const karats = [24,22,21,18];
+  els.karatTable.innerHTML='';
+  for(const k of karats){
+    const base = perGram24 * karatFactor(k);
+    const withFees = applyFees(base);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>عيار ${k}</td><td>${fmtCurrency(withFees,state.currency)} <span class="muted">(قبل الرسوم: ${fmtCurrency(base,state.currency)})</span></td>`;
+    els.karatTable.appendChild(tr);
+  }
+  renderChart();
+}
+
+// الرسم البياني
+function ensureChart(){
+  if (state.chart) return state.chart;
+  const ctx = els.chartCanvas.getContext('2d');
+  state.chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels:[], datasets:[{ label:'أونصة بالعملة المختارة', data:[], tension:0.2, pointRadius:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ ticks:{autoSkip:true,maxTicksLimit:8}}, y:{ ticks:{callback:v=>fmtNumber(v)}}},
+      plugins:{ legend:{display:true} } }
+  });
+  return state.chart;
+}
+function renderChart(){
+  const c = ensureChart();
+  c.data.labels = state.history.map(p=>p.date);
+  c.data.datasets[0].data = state.history.map(p=>p.ounceUsd * state.usdToCurr);
+  c.update();
+}
+
+// تاريخ افتراضي
+function ensureHistorySeed(){
+  if (state.history.length) return;
+  let price = state.ounceUsd;
+  const arr=[];
+  for(let i=29;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    price = Math.max(1200, price + (Math.random()-0.5)*10);
+    arr.push({date: todayStr(d), ounceUsd: +price.toFixed(2)});
+  }
+  state.history = arr;
+}
+
+// ==== الجلب من المزوّدات ====
+// GoldAPI: https://www.goldapi.io/  -> { price: <number> } (أونصة بالدولار)
+async function fetchFromGoldAPI(){
+  if (!state.goldApiKey) throw new Error('لا يوجد مفتاح GoldAPI');
+  const res = await fetch('https://www.goldapi.io/api/XAU/USD', {
+    headers:{'x-access-token': state.goldApiKey, 'Accept':'application/json'}
+  });
+  if (!res.ok) throw new Error('GoldAPI فشل');
+  const j = await res.json();
+  const price = j?.price;
+  if (typeof price !== 'number') throw new Error('GoldAPI صيغة غير متوقعة');
+  return price;
+}
+
+// Metals-API: https://metals-api.com/  -> rates.XAU (XAU لكل USD) => نحتاج USD لكل XAU = 1/rate
+async function fetchFromMetalsAPI(){
+  if (!state.metalsApiKey) throw new Error('لا يوجد مفتاح Metals-API');
+  const url = `https://metals-api.com/api/latest?access_key=${encodeURIComponent(state.metalsApiKey)}&base=USD&symbols=XAU`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Metals-API فشل');
+  const j = await res.json();
+  const r = j?.rates?.XAU;
+  if (typeof r !== 'number' || r<=0) throw new Error('Metals-API صيغة غير متوقعة');
+  const usdPerXau = 1 / r; // تحويل
+  return usdPerXau;
+}
+
+// metals.live (تجريبي مجاني)
+async function fetchFromMetalsLive(){
+  const res = await fetch('https://api.metals.live/v1/spot');
+  if (!res.ok) throw new Error('metals.live فشل');
+  const j = await res.json();
+  let price;
+  if (Array.isArray(j)) {
+    if (j.length && typeof j[0] === 'object') {
+      const goldObj = j.find(o => o && (o.gold || o.Gold || o.XAU));
+      price = goldObj?.gold || goldObj?.Gold || goldObj?.XAU;
+    } else if (Array.isArray(j[0])) {
+      const last = j[j.length-1];
+      price = Array.isArray(last) ? last[1] : undefined;
+    }
+  } else if (j && typeof j === 'object') {
+    price = j.gold || j.Gold || j.XAU;
+  }
+  if (typeof price !== 'number') throw new Error('metals.live صيغة غير متوقعة');
+  return price;
+}
+
+// exchangerate.host (تقريبي: XAU كعملة)
+async function fetchFromERH(){
+  const res = await fetch('https://api.exchangerate.host/latest?base=XAU&symbols=USD');
+  if (!res.ok) throw new Error('exchangerate.host فشل');
+  const j = await res.json();
+  const price = j?.rates?.USD;
+  if (typeof price !== 'number') throw new Error('exchangerate.host صيغة غير متوقعة');
+  return price;
+}
+
+// الموزّع
+async function fetchOunceUsd(){
+  const p = state.apiProvider;
+  if (p==='goldapi')       return fetchFromGoldAPI();
+  if (p==='metalsapi')     return fetchFromMetalsAPI();
+  if (p==='metalslive')    return fetchFromMetalsLive();
+  if (p==='exchangeratehost') return fetchFromERH();
+  throw new Error('مزوّد غير معروف');
+}
+
+// تحديث السعر
+async function refreshPrice(){
+  try{
+    els.status.textContent = '… يجري التحديث';
+    const price = await fetchOunceUsd();
+    state.ounceUsd = +price;
+    state.lastUpdated = Date.now();
+
+    // حدّث/أضف نقطة اليوم
+    const d = todayStr();
+    const i = state.history.findIndex(x=>x.date===d);
+    if (i>=0) state.history[i].ounceUsd = +state.ounceUsd;
+    else state.history.push({date:d, ounceUsd:+state.ounceUsd});
+    state.history.sort((a,b)=>a.date.localeCompare(b.date));
+
+    render(); save();
+    els.status.textContent = 'تم التحديث';
+  }catch(e){
+    els.status.textContent = 'فشل التحديث – تحقق من المزوّد/المفتاح/الاتصال';
+    console.error(e);
+  }
+}
+
+// مؤقت التحديث
+function setupTimer(){
+  if (state._timer) clearInterval(state._timer);
+  const mins = Math.max(1, parseInt(state.autoRefreshMins,10)||5);
+  state._timer = setInterval(refreshPrice, mins*60*1000);
+}
+
+// أحداث
+function bind(){
+  els.apiProvider.addEventListener('change', ()=>{ state.apiProvider = els.apiProvider.value; syncUI(); save(); });
+  if (els.goldApiKey) els.goldApiKey.addEventListener('input', ()=>{ state.goldApiKey = els.goldApiKey.value.trim(); save(); });
+  if (els.metalsApiKey) els.metalsApiKey.addEventListener('input', ()=>{ state.metalsApiKey = els.metalsApiKey.value.trim(); save(); });
+
+  els.currencyCode.addEventListener('input', ()=>{ state.currency = els.currencyCode.value.trim().toUpperCase()||'USD'; render(); save(); });
+  els.usdToCurr.addEventListener('input', ()=>{ state.usdToCurr = normalizeNumber(els.usdToCurr.value)||state.usdToCurr; render(); renderChart(); save(); });
+  els.autoRefreshMins.addEventListener('input', ()=>{ state.autoRefreshMins = Math.max(1, parseInt(els.autoRefreshMins.value,10)||5); setupTimer(); save(); });
+
+  els.feeFlat.addEventListener('input', render);
+  els.feePct.addEventListener('input', render);
+
+  els.refreshBtn.addEventListener('click', refreshPrice);
+  els.themeToggle.addEventListener('click', ()=>{
+    const root=document.documentElement;
+    root.setAttribute('data-theme', root.getAttribute('data-theme')==='dark'?'light':'dark');
+    save();
+  });
+
+  els.exportCsv.addEventListener('click', ()=>{
+    const rows = [['date','ounce_usd'], ...state.history.map(p=>[p.date,p.ounceUsd])];
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}), url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='gold_history.csv'; a.click(); URL.revokeObjectURL(url);
+  });
+  els.importCsv.addEventListener('change',(e)=>{
+    const f=e.target.files?.[0]; if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      const lines=String(r.result).trim().split(/\r?\n/), out=[];
+      for(let i=0;i<lines.length;i++){
+        const [date,price]=lines[i].split(',');
+        if(i===0 && /date/i.test(date)) continue;
+        const p=normalizeNumber(price);
+        if(date && !Number.isNaN(p)) out.push({date:date.trim(), ounceUsd:+p});
+      }
+      if(out.length){ state.history = out.sort((a,b)=>a.date.localeCompare(b.date)); render(); save(); }
+      e.target.value='';
+    };
+    r.readAsText(f);
+  });
+  els.resetHistory.addEventListener('click', ()=>{ state.history=[]; ensureHistorySeed(); render(); save(); });
+}
+
+// بدء
+(function init(){
+  load();
+  syncUI();
+  ensureHistorySeed();
+  bind();
+  render();
+  setupTimer();
+  refreshPrice();
+})();
