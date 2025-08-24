@@ -1,0 +1,23 @@
+/* نمط بسيط متجاوب للجوال والكمبيوتر */
+:root{
+  --bg:#f7f7f7;
+  --card:#ffffff;
+  --text:#111;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol', 'Noto Color Emoji', sans-serif;}
+
+.container{max-width:720px;margin:24px auto;padding:16px;}
+h1{margin:0 0 8px 0;text-align:center;font-size: clamp(22px,4vw,32px);}
+.subtitle{margin:0 0 16px 0;text-align:center;color:var(--muted)}
+
+.price-table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.price-table th, .price-table td{padding:12px 14px;border-bottom:1px solid var(--border);text-align:center}
+.price-table thead th{background:#f3f4f6;font-weight:600}
+.price-table tbody tr:last-child td{border-bottom:none}
+
+.note{margin-top:16px;color:var(--muted)}
+.note summary{cursor:pointer}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أسعار الذهب في الكويت</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>أسعار الذهب بالدينار الكويتي</h1>
+    <p class="subtitle">تحديث تلقائي كل <strong>10</strong> ثوانٍ • <span id="lastUpdate">—</span></p>
+
+    <table class="price-table">
+      <thead>
+        <tr>
+          <th>الوحدة</th>
+          <th>السعر (د.ك)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>أونصة الذهب (عيار 24)</td>
+          <td id="ounce">—</td>
+        </tr>
+        <tr>
+          <td>غرام ذهب عيار 24</td>
+          <td id="g24">—</td>
+        </tr>
+        <tr>
+          <td>غرام ذهب عيار 22</td>
+          <td id="g22">—</td>
+        </tr>
+        <tr>
+          <td>غرام ذهب عيار 21</td>
+          <td id="g21">—</td>
+        </tr>
+        <tr>
+          <td>غرام ذهب عيار 18</td>
+          <td id="g18">—</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <details class="note">
+      <summary>ملاحظة مهمة</summary>
+      <div>
+        هذا الموقع يعتمد على واجهة GoldAPI المجانية. وضع مفتاح الـ API داخل المتصفح يعني أنه ظاهر لأي شخص يفتح الكود.
+        للحماية الكاملة تحتاج خادم وسيط (Proxy) لإخفاء المفتاح. للاستخدام الشخصي غالبًا لا توجد مشكلة.
+      </div>
+    </details>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
