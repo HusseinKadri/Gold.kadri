@@ -92,3 +92,22 @@
   </script>
 </body>
 </html>
+<!-- ويدجت صغير في زاوية الصفحة -->
+<div style="position:fixed; top:10px; right:10px; z-index:999;">
+  <div class="tradingview-widget-container">
+    <div class="tradingview-widget-container__widget"></div>
+    <script async type="text/javascript"
+      src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js">
+    {
+      "symbol": "OANDA:XAUUSD",
+      "locale": "ar",
+      "dateRange": "1D",
+      "colorTheme": "light",
+      "isTransparent": false,
+      "autosize": true,
+      "width": 250,
+      "height": 150
+    }
+    </script>
+  </div>
+</div>
