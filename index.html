@@ -36,8 +36,8 @@
     <p id="err" class="err"></p>
   </main>
 
-  <!-- ويدجت صغير ثابت لعرض XAUUSD (عرض فقط) -->
-  <div style="position:fixed; top:10px; right:10px; z-index:999;">
+  <!-- ويدجت صغير مثبت أسفل يمين الصفحة -->
+  <div style="position:fixed; bottom:10px; right:10px; z-index:999;">
     <div class="tradingview-widget-container">
       <div class="tradingview-widget-container__widget"></div>
       <script async type="text/javascript"
@@ -49,8 +49,8 @@
         "colorTheme": "light",
         "isTransparent": false,
         "autosize": true,
-        "width": 150,
-        "height": 80
+        "width": 250,
+        "height": 150
       }
       </script>
     </div>
@@ -75,7 +75,6 @@
     }
 
     async function fetchXauToKwd(){
-      // كسر الكاش بإضافة طابع زمني
       const url = `${BASE}?access_key=${ACCESS_KEY}&from=XAU&to=KWD&amount=1&_=${Date.now()}`;
       const r = await fetch(url, { cache:"no-store", mode:"cors", referrerPolicy:"no-referrer" });
       const text = await r.text();
@@ -94,22 +93,16 @@
     async function tick(){
       try{
         const res = await fetchXauToKwd();
-
-        // فحص بنية الاستجابة المتوقعة
-        const ounceKWD = Number(
-          (res.data && typeof res.data.result !== "undefined") ? res.data.result : NaN
-        );
+        const ounceKWD = Number(res.data?.result);
         if(!res.ok || !Number.isFinite(ounceKWD)){
-          // اعرض نصّ الخطأ/الردّ للمساعدة
-          throw new Error(`HTTP ${res.status} :: ${typeof res.data==="string"?res.data:JSON.stringify(res.data).slice(0,280)}`);
+          throw new Error(`HTTP ${res.status} :: ${JSON.stringify(res.data).slice(0,280)}`);
         }
-
         fill(ounceKWD);
         $$("err").textContent = "";
         stamp(); nextMs = BASE_MS;
       }catch(e){
         $$("err").textContent = "Error: " + (e?.message || e);
-        nextMs = Math.min(nextMs * 2, 60_000); // backoff
+        nextMs = Math.min(nextMs * 2, 60_000);
       }finally{
         setTimeout(tick, nextMs);
       }
