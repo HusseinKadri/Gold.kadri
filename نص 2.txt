@@ -1,4 +1,0 @@
-<label class="row" id="metalsApiKeyRow" style="display:none">
-  <span>Metals-API مفتاح:</span>
-  <input id="metalsApiKey" type="password" placeholder="live_..." />
-</label>
