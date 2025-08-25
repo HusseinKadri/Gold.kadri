@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>أسعار الذهب بالدينار الكويتي — 24/22/21/18</title>
   <style>
-  :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#6b7280;--border:#e5e7eb}
+  :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#6b7280;--border:#e5e7eb;--danger:#b91c1c}
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
   .container{max-width:980px;margin:24px auto;padding:16px}
   h1{margin:0 0 6px;text-align:center;font-size:clamp(22px,4vw,32px)}
-  .meta{text-align:center;color:var(--muted);margin:0 0 16px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;color:var(--muted);margin:0 0 16px}
+  .meta .chip{background:#eef2ff;border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:12px}
   .layout{display:grid;grid-template-columns:1fr;gap:14px}
   @media(min-width:900px){.layout{grid-template-columns:1fr 280px}}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px}
@@ -18,22 +19,26 @@
   .price-table th,.price-table td{padding:12px 14px;border-bottom:1px solid var(--border);text-align:center}
   .price-table thead th{background:#f3f4f6;font-weight:600}
   .price-table tbody tr:last-child td{border-bottom:none}
-  .err{margin-top:12px;color:#b91c1c;text-align:center;direction:ltr;white-space:pre-wrap}
+  .err{margin-top:12px;color:var(--danger);text-align:center;direction:ltr;white-space:pre-wrap}
   .widget-title{margin:6px 8px 10px;font-size:14px;color:var(--muted);text-align:center}
+  .actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
+  button{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
+  button:disabled{opacity:.6;cursor:not-allowed}
   </style>
 </head>
 <body>
   <main class="container">
     <h1>أسعار الذهب بالدينار الكويتي</h1>
-    <p class="meta">
-      تحديث كل <strong>10</strong> ثوانٍ • آخر تحديث: <span id="lastUpdate">—</span>
-      • المصدر: <span id="src">—</span>
-    </p>
+    <div class="meta">
+      <span class="chip">تحديث كل <strong>10</strong> ثوانٍ</span>
+      <span class="chip">آخر تحديث: <span id="lastUpdate">—</span></span>
+      <span class="chip">المصدر: <span id="src">—</span></span>
+    </div>
 
     <section class="layout">
       <!-- يسار: جدول العيارات -->
       <div class="card">
-        <table class="price-table">
+        <table class="price-table" aria-describedby="err">
           <thead><tr><th>العيار</th><th>السعر للغرام (د.ك)</th></tr></thead>
           <tbody>
             <tr><td>عيار 24</td><td id="k24">—</td></tr>
@@ -42,7 +47,12 @@
             <tr><td>عيار 18</td><td id="k18">—</td></tr>
           </tbody>
         </table>
-        <p id="err" class="err"></p>
+
+        <div class="actions">
+          <button id="refreshBtn" type="button">تحديث الآن</button>
+        </div>
+
+        <p id="err" class="err" role="status" aria-live="polite"></p>
       </div>
 
       <!-- يمين: ويدجت TradingView (عرض فقط) -->
@@ -69,57 +79,87 @@
   </main>
 
   <script>
-    // رابط الـWorker الخاص بك (JSON من دار السبائك)
+    // ——— الإعداد ———
     const WORKER_JSON = "https://husseinkadri.sfa7000.workers.dev/";
+    const BASE_MS = 10_000;
+    const $$ = (id) => document.getElementById(id);
+    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(3) : "—");
 
-    const BASE_MS = 10_000; let nextMs = BASE_MS;
-    const $$  = id => document.getElementById(id);
-    const fmt = n => (Number.isFinite(n) ? n.toFixed(3) : "—");
+    let paused = false;   // نوقف الجلب حين التبويب غير مرئي
+    let nextMs = BASE_MS; // backoff تلقائي
+    let timer = null;
 
+    // ——— أدوات عرض ———
     function stamp(){
       const d=new Date();
-      const hh=String(d.getHours()).padStart(2,"0"),
-            mm=String(d.getMinutes()).padStart(2,"0"),
-            ss=String(d.getSeconds()).padStart(2,"0");
-      $$("lastUpdate").textContent = `${hh}:${mm}:${ss}`;
+      $$("lastUpdate").textContent =
+        `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
     }
-
-    async function fetchRates(){
-      const url = WORKER_JSON + "?_=" + Date.now(); // كسر الكاش
-      const r = await fetch(url, { cache:"no-store", mode:"cors" });
-      const text = await r.text();
-      let data; try { data = JSON.parse(text); } catch { data = { raw:text }; }
-      return { ok: r.ok, status: r.status, data };
-    }
-
     function fill({k24, k22, k21, k18}){
       $$("k24").textContent = fmt(k24);
       $$("k22").textContent = fmt(k22);
       $$("k21").textContent = fmt(k21);
       $$("k18").textContent = fmt(k18);
     }
+    function setErr(msg){ $$("err").textContent = msg || ""; }
 
-    async function tick(){
+    // ——— الجلب مع مهلة ———
+    async function fetchWithTimeout(resource, options = {}, timeoutMs = 8000) {
+      const ctrl = new AbortController();
+      const id = setTimeout(() => ctrl.abort("timeout"), timeoutMs);
+      try {
+        const r = await fetch(resource, { ...options, signal: ctrl.signal });
+        return r;
+      } finally {
+        clearTimeout(id);
+      }
+    }
+
+    async function fetchRates(){
+      const url = WORKER_JSON + "?_=" + Date.now();
+      const r = await fetchWithTimeout(url, { cache:"no-store", mode:"cors" });
+      const text = await r.text(); let data;
+      try { data = JSON.parse(text); } catch { data = { raw:text }; }
+      return { ok: r.ok, status: r.status, data };
+    }
+
+    async function tick(force=false){
+      if (paused && !force) { schedule(); return; }
       try{
+        $$("refreshBtn").disabled = true;
         const res = await fetchRates();
         const rates = res.data?.rates;
-        if(!res.ok || !rates || ![rates.k24, rates.k22, rates.k21, rates.k18].every(Number.isFinite)){
+        if (!res.ok || !rates || ![rates.k24, rates.k22, rates.k21, rates.k18].every(Number.isFinite)) {
           throw new Error(`HTTP ${res.status} :: ${JSON.stringify(res.data).slice(0,280)}`);
         }
         fill(rates);
         $$("src").textContent = (res.data.source || "").replace(/^https?:\/\//, "");
-        $$("err").textContent = "";
-        stamp(); nextMs = BASE_MS;
-      }catch(e){
-        $$("err").textContent = "Error: " + (e?.message || e);
+        setErr(""); stamp();
+        nextMs = BASE_MS; // نجاح: أعد ضبط الفاصل
+
+      } catch(e){
+        setErr("Error: " + (e?.message || e));
         $$("src").textContent = "—";
-        nextMs = Math.min(nextMs * 2, 60_000); // backoff
-      }finally{
-        setTimeout(tick, nextMs);
+        nextMs = Math.min(nextMs * 2, 60_000); // backoff حتى 60s
+      } finally {
+        $$("refreshBtn").disabled = false;
+        schedule();
       }
     }
 
-    stamp(); tick();
+    function schedule(){ clearTimeout(timer); timer = setTimeout(() => tick(), nextMs); }
+
+    // إيقاف/استئناف عند تغيّر الرؤية
+    document.addEventListener("visibilitychange", () => {
+      paused = document.hidden;
+      if (!paused) { nextMs = BASE_MS; tick(true); }
+    });
+
+    // زر تحديث يدوي
+    $$("refreshBtn").addEventListener("click", () => { nextMs = BASE_MS; tick(true); });
+
+    // تشغيل أولي
+    stamp(); tick(true);
   </script>
 </body>
 </html>
