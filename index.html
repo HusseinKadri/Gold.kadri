@@ -36,15 +36,32 @@
     <p id="err" class="err"></p>
   </main>
 
-  <script>
-    // مفتاحك:
-    const ACCESS_KEY = "68bdef1acfd6647d906618dea32dc23e";
+  <!-- ويدجت صغير مثبت في زاوية الصفحة -->
+  <div style="position:fixed; top:10px; right:10px; z-index:999;">
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget"></div>
+      <script async type="text/javascript"
+        src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js">
+      {
+        "symbol": "OANDA:XAUUSD",
+        "locale": "ar",
+        "dateRange": "1D",
+        "colorTheme": "light",
+        "isTransparent": false,
+        "autosize": true,
+        "width": 250,
+        "height": 150
+      }
+      </script>
+    </div>
+  </div>
 
-    // نطلب سعر 1 XAU بالدينار (KWD) ثم نحول إلى غرامات
+  <script>
+    // إعدادات API
+    const ACCESS_KEY = "68bdef1acfd6647d906618dea32dc23e"; // مفتاحك
     const BASE = "https://api.exchangerate.host/convert";
-    const OUNCE_TO_GRAM = 31.1034768;   // أونصة ترويسية → غرام
-    const BASE_MS = 10_000;             // 10 ثوانٍ
-    let nextMs = BASE_MS;
+    const OUNCE_TO_GRAM = 31.1034768;
+    const BASE_MS = 10_000; let nextMs = BASE_MS;
 
     const $$  = (id) => document.getElementById(id);
     const fmt = (n) => (Number.isFinite(n) ? n.toFixed(3) : "—");
@@ -67,47 +84,25 @@
       try{
         const res = await fetchXauToKwd();
         if(!res.ok) throw new Error(`HTTP ${res.status} :: ${JSON.stringify(res.data).slice(0,180)}`);
-
-        // المتوقع: { result: <سعر أونصة XAU بالدينار> }
         const ounceKWD = Number(res.data?.result);
-        if(!Number.isFinite(ounceKWD)) throw new Error("invalid result from API");
+        if(!Number.isFinite(ounceKWD)) throw new Error("invalid result");
 
         const g24 = ounceKWD / OUNCE_TO_GRAM;
         $$("k24").textContent = fmt(g24);
-        $$("k22").textContent = fmt(g24 * (22/24));
-        $$("k21").textContent = fmt(g24 * (21/24));
-        $$("k18").textContent = fmt(g24 * (18/24));
+        $$("k22").textContent = fmt(g24*(22/24));
+        $$("k21").textContent = fmt(g24*(21/24));
+        $$("k18").textContent = fmt(g24*(18/24));
 
         $$("err").textContent = "";
         stamp(); nextMs = BASE_MS;
       }catch(e){
         $$("err").textContent = "Error: " + (e?.message || e);
-        nextMs = Math.min(nextMs * 2, 60_000); // backoff لو صار Rate Limit أو خطأ مؤقت
+        nextMs = Math.min(nextMs * 2, 60_000);
       }finally{
         setTimeout(tick, nextMs);
       }
     }
-
     stamp(); tick();
   </script>
 </body>
 </html>
-<!-- ويدجت صغير في زاوية الصفحة -->
-<div style="position:fixed; top:10px; right:10px; z-index:999;">
-  <div class="tradingview-widget-container">
-    <div class="tradingview-widget-container__widget"></div>
-    <script async type="text/javascript"
-      src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js">
-    {
-      "symbol": "OANDA:XAUUSD",
-      "locale": "ar",
-      "dateRange": "1D",
-      "colorTheme": "light",
-      "isTransparent": false,
-      "autosize": true,
-      "width": 250,
-      "height": 150
-    }
-    </script>
-  </div>
-</div>
