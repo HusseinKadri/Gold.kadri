@@ -1,348 +1,366 @@
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    // --- CORS & Health ---
-    const CORS = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, *",
-      "Vary": "Origin",
-    };
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-    if (path === "/health") return new Response("OK", { status: 200, headers: { "Content-Type":"text/plain; charset=UTF-8", ...CORS } });
-    if (request.method !== "GET") {
-      return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
-        status: 405, headers: { "Content-Type":"application/json;charset=UTF-8", ...CORS }
-      });
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>أسعار الذهب – دار السبائك</title>
+  <meta name="description" content="لوحة تعرض أسعار الذهب من daralsabaek.com عبر عامل Cloudflare (24/22/21/18 وقيمة الأونصة)">
+  <style>
+    :root{
+      --bg: #0b0f14;
+      --panel: #121822;
+      --muted: #97a3b3;
+      --text: #eef3fb;
+      --accent: #3aa1ff;
+      --danger: #ff5470;
+      --warning: #ffc857;
+      --success: #2dd4bf;
+      --ring: rgba(58,161,255,0.35);
     }
-
-    // --- إعدادات ---
-    const SOURCE_ORIGIN = "https://daralsabaek.com";
-    const sourceURL = SOURCE_ORIGIN + "/";
-    const strict   = url.searchParams.get("strict") !== "0";   // افتراضي: صارم
-    const derive   = url.searchParams.get("derive") !== "0";   // افتراضي: اشتقاق مُفعّل
-    const debug    = url.searchParams.has("debug");            // يعيد نوافذ نص للتشخيص
-    const noCache  = url.searchParams.get("nocache") === "1";  // تعطيل كاش المصدر
-    const page     = url.searchParams.get("page");             // لتجربة صفحة محددة داخل الموقع
-
-    // سنركّز على العيارات الشائعة في الكويت
-    const KARATS = [24, 22, 21, 18];
-    const RATIOS = { 24:1, 22:22/24, 21:21/24, 18:18/24 };
-    const TROY_OUNCE = 31.1034768;
-
-    const json = (data, status=200) =>
-      new Response(JSON.stringify(data), { status, headers: { "Content-Type":"application/json;charset=UTF-8", ...CORS } });
-
-    // --- أدوات نص ---
-    const DIG = "0-9٠-٩۰-۹";
-    const numberRe = `[${DIG}][${DIG}\\s,\\.\\u066B\\u066C\\u00A0\\u2007\\u2009\\u202F]*[${DIG}]`;
-    const currencyRe = `(?:KWD|KD|K\\.?D\\.?|kwd|kd|د\\.?\\s*ك|دك|دينار(?:\\s*كويتي|\\s*كويتى)?)`;
-    const numWithCurr = new RegExp(`(?:${currencyRe}\\s*)?(${numberRe})(?:\\s*${currencyRe})?`, "ig");
-
-    function normalizeDigits(str) {
-      const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9","۰":"0","۱":"1","۲":"2","۳":"3","۴":"4","۵":"5","۶":"6","۷":"7","۸":"8","۹":"9" };
-      return String(str).replace(/[٠-٩۰-۹]/g, (d) => map[d] ?? d);
-    }
-    function parsePriceSmart(raw) {
-      if (!raw) return null;
-      let s = normalizeDigits(raw)
-        .replace(/[\u00A0\u2007\u2009\u202F]/g, " ")
-        .replace(/\u066B/g, ".") // Arabic decimal
-        .replace(/\u066C/g, ",") // Arabic thousands
-        .trim();
-
-      const hasDot = s.includes("."), hasComma = s.includes(",");
-      if (hasComma && !hasDot) {
-        s = s.replace(/,/g, ".");            // comma = decimal
-      } else if (hasDot && hasComma) {
-        const lastDot = s.lastIndexOf("."), lastComma = s.lastIndexOf(",");
-        if (lastDot > lastComma) s = s.replace(/,/g, "");  // dot = decimal
-        else { s = s.replace(/\./g, ""); s = s.replace(/,/g, "."); } // comma = decimal
-      }
-      s = s.replace(/[^\d.]/g, "");
-      if (!s) return null;
-      const v = parseFloat(s);
-      return Number.isFinite(v) && v > 2 && v < 200 ? v : null; // نطاق منطقي للغرام بالدينار
-    }
-
-    function sanitizeTextKeepScripts(html) {
-      const scripts = Array.from(html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)).map(m => m[1] || "");
-      const text = html
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<script[\s\S]*?<\/script>/gi, " __SCRIPT__ ")
-        .replace(/<[^>]*>/g, " ")
-        .replace(/[\u200E\u200F\u202A-\u202E]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      return { text, scripts };
-    }
-
-    function arabicDigits(n, persian=false) {
-      const map = persian ? ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"] : ["٠","١","٢","٣","٤","٥","٦","٧","٨","٩"];
-      return String(n).replace(/\d/g, d => map[+d]);
-    }
-
-    const anchorCache = new Map();
-    function karatAnchor(karat) {
-      if (anchorCache.has(karat)) return anchorCache.get(karat);
-      const k1 = String(karat), k2 = arabicDigits(karat,false), k3 = arabicDigits(karat,true);
-      const re = new RegExp(
-        [
-          `(?:سعر\\s*)?(?:عيار|قيراط|karat|ذهب|gold)\\s*:?\\s*(?:${k1}|${k2}|${k3})\\b`,
-          `\\b(?:${k1}|${k2}|${k3})\\s*(?:k|K|عيار|قيراط)\\b`,
-          `\\b(?:جرام|غرام|gram|g)\\s*(?:${k1}|${k2}|${k3})\\b`,
-          `\\b(?:k|karat|grade|karat_)\\s*[_-]?\\s*(?:${k1}|${k2}|${k3})\\b`,
-          `\\b(?:${k1}|${k2}|${k3})\\s*[_-]?(?:k|karat)\\b`,
-        ].join("|"), "i"
-      );
-      anchorCache.set(karat, re);
-      return re;
-    }
-
-    const ounceAnchor = new RegExp(
-      [
-        `(?:سعر\\s*)?(?:أونصة|اونصة|أوقية|اوقية)`,
-        `\\b(?:ounce|troy\\s*ounce|oz)\\b`,
-      ].join("|"), "i"
-    );
-
-    function findNearestNumber(text, idx, span = 500) {
-      // يمين
-      const right = text.slice(idx, Math.min(text.length, idx + span));
-      numWithCurr.lastIndex = 0;
-      const mr = numWithCurr.exec(right);
-      const rightVal = mr ? parsePriceSmart(mr[1]) : null;
-
-      // يسار (نلتقط آخر رقم قبل المرساة)
-      const leftStart = Math.max(0, idx - span);
-      const left = text.slice(leftStart, idx);
-      numWithCurr.lastIndex = 0;
-      let ml, lastM = null;
-      while ((ml = numWithCurr.exec(left))) lastM = ml;
-      const leftVal = lastM ? parsePriceSmart(lastM[1]) : null;
-
-      if (rightVal != null && leftVal != null) {
-        const distRight = mr.index;
-        const distLeft = left.length - (lastM.index + lastM[0].length);
-        return distRight <= distLeft ? rightVal : leftVal;
-      }
-      return rightVal ?? leftVal ?? null;
-    }
-
-    function deriveFromKarat(baseK, baseVal) {
-      const pack = {};
-      for (const k of KARATS) pack[k] = +(baseVal * (RATIOS[k] / RATIOS[baseK])).toFixed(3);
-      return pack;
-    }
-
-    function round3(n){ return Math.round(n*1000)/1000; }
-
-    function globalFit(text) {
-      const all = Array.from(text.matchAll(new RegExp(numberRe, "g")))
-        .map(m => parsePriceSmart(m[0]))
-        .filter(v => v != null);
-      if (!all.length) return null;
-      // ابحث عن قيمة تصلح أن تكون 24K، ثم اشتق الباقي واختر أقرب تطابق
-      const uniq = [];
-      for (const v of all.sort((a,b)=>b-a)) if (!uniq.some(u => Math.abs(u - v) < 0.02)) uniq.push(v);
-      let bestBase = null, bestScore = 1e9;
-      for (const base of uniq) {
-        const expected = { 24: base, 22: base*RATIOS[22], 21: base*RATIOS[21], 18: base*RATIOS[18] };
-        let score = 0;
-        for (const k of KARATS) {
-          let err = Math.min(...uniq.map(u => Math.abs(u - expected[k]) / expected[k]));
-          score += err;
-        }
-        if (score < bestScore) { bestScore = score; bestBase = base; }
-      }
-      if (bestBase == null || bestScore > 1.2) return null;
-      return deriveFromKarat(24, bestBase);
-    }
-
-    // --- Fetch HTML ---
-    async function fetchHTML(u) {
-      const resp = await fetch(u, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; GoldScraper/1.0; +https://example.com)",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "ar,en;q=0.8",
-          ...(noCache ? { "Cache-Control": "no-cache" } : {}),
-        },
-        cf: noCache ? undefined : { cacheEverything: true, cacheTtl: 120 },
-      });
-      return resp;
-    }
-
-    let html, sourceStatus = null, usedURL = null;
-    try {
-      const startURL = page ? new URL(page, SOURCE_ORIGIN).toString() : sourceURL;
-      const r = await fetchHTML(startURL);
-      sourceStatus = r.status;
-      if (!r.ok) throw new Error(`Bad upstream status ${r.status}`);
-      html = await r.text();
-      usedURL = startURL;
-    } catch (e) {
-      return json({ error: "Unable to fetch source", details: String(e?.message || e) }, 502);
-    }
-
-    const { text, scripts } = sanitizeTextKeepScripts(html);
-
-    // --- استخراج من النص ---
-    const prices = { 24:null, 22:null, 21:null, 18:null };
-    const measured = { 24:false, 22:false, 21:false, 18:false, ounce:false };
-    const derived  = { 24:false, 22:false, 21:false, 18:false, ounce:false };
-
-    for (const k of KARATS) {
-      const re = karatAnchor(k);
-      const m = re.exec(text);
-      if (m) {
-        const v = findNearestNumber(text, m.index, 550);
-        if (v != null) { prices[k] = v; measured[k] = true; }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: #f6f7fb;
+        --panel: #ffffff;
+        --muted: #4b5563;
+        --text: #0b1322;
+        --accent: #2563eb;
+        --danger: #dc2626;
+        --warning: #b45309;
+        --success: #10b981;
+        --ring: rgba(37,99,235,0.25);
       }
     }
-
-    // --- محاولة داخل السكربتات (state/JSON) ---
-    if (!Object.values(measured).some(Boolean) && scripts.length) {
-      for (const s of scripts.slice(0, 12)) { // سقف معقول
-        for (const k of KARATS) {
-          if (prices[k] != null) continue;
-          const re = karatAnchor(k);
-          const m = re.exec(s);
-          if (m) {
-            // التقط أقرب رقم في هذا السكربت
-            let v = null;
-            // رقم بعد المفتاح
-            numWithCurr.lastIndex = m.index;
-            const mr = numWithCurr.exec(s);
-            if (mr) v = parsePriceSmart(mr[1]);
-            // أو قبله
-            if (v == null) {
-              let ml, lastM = null;
-              numWithCurr.lastIndex = 0;
-              while ((ml = numWithCurr.exec(s)) && ml.index < m.index) lastM = ml;
-              if (lastM) v = parsePriceSmart(lastM[1]);
-            }
-            if (v != null) { prices[k] = v; measured[k] = true; }
-          }
-        }
-      }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Naskh Arabic","Noto Sans Arabic",Tahoma,Arial,sans-serif;
     }
-
-    // --- JSON-LD ---
-    if (!Object.values(measured).some(Boolean)) {
-      const ldScripts = Array.from(html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)).map(m => m[1]);
-      for (const raw of ldScripts) {
-        try {
-          const data = JSON.parse(raw);
-          const arr = Array.isArray(data) ? data : [data];
-          for (const obj of arr) {
-            const stack = [obj];
-            while (stack.length) {
-              const cur = stack.pop();
-              if (!cur || typeof cur !== "object") continue;
-              if (typeof cur.price !== "undefined") {
-                const v = parsePriceSmart(String(cur.price));
-                // نعتبره أقرب لـ 24 إن لم نجد شيء
-                if (v != null && prices[24] == null) { prices[24] = v; measured[24] = true; }
-              }
-              for (const k of Object.keys(cur)) {
-                const val = cur[k];
-                if (val && typeof val === "object") stack.push(val);
-              }
-            }
-          }
-        } catch {}
-      }
+    .wrap{max-width:980px; margin:0 auto; padding:24px 16px 60px}
+    header{
+      display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:16px;
     }
-
-    // --- أونصة (من النص) ---
-    let ounce = null;
-    {
-      const m = ounceAnchor.exec(text);
-      if (m) {
-        const v = findNearestNumber(text, m.index, 600);
-        if (v != null) { ounce = v; measured.ounce = true; }
-      }
-      // جرب السكربتات لو ما لقينا
-      if (ounce == null && scripts.length) {
-        for (const s of scripts.slice(0, 12)) {
-          const ms = ounceAnchor.exec(s);
-          if (!ms) continue;
-          numWithCurr.lastIndex = ms.index;
-          const mr = numWithCurr.exec(s);
-          let v = mr ? parsePriceSmart(mr[1]) : null;
-          if (v == null) {
-            let ml, lastM = null;
-            numWithCurr.lastIndex = 0;
-            while ((ml = numWithCurr.exec(s)) && ml.index < ms.index) lastM = ml;
-            if (lastM) v = parsePriceSmart(lastM[1]);
-          }
-          if (v != null) { ounce = v; measured.ounce = true; break; }
-        }
-      }
+    h1{font-size:clamp(20px,3.6vw,28px); margin:0}
+    .muted{color:var(--muted)}
+    .panel{
+      background:var(--panel); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15), 0 1px 1px rgba(255,255,255,0.03) inset;
     }
-
-    // --- اشتقاق مفقود ---
-    if (derive) {
-      // من 24 -> بقية العيارات
-      const baseK = KARATS.find(k => prices[k] != null);
-      if (baseK != null) {
-        const pack = deriveFromKarat(baseK, prices[baseK]);
-        for (const k of KARATS) if (prices[k] == null) { prices[k] = pack[k]; derived[k] = true; }
-      } else {
-        // لو ماعندنا شيء: global fit
-        const gf = globalFit(text);
-        if (gf) for (const k of KARATS) { if (prices[k] == null) { prices[k] = round3(gf[k]); derived[k] = true; } }
-      }
-
-      // اشتقاق الأونصة ↔ 24K
-      if (ounce == null && prices[24] != null) {
-        ounce = round3(prices[24] * TROY_OUNCE);
-        derived.ounce = true;
-      } else if (ounce != null && prices[24] == null) {
-        prices[24] = round3(ounce / TROY_OUNCE);
-        derived[24] = true;
-        // وبعدها اشتق باقي العيارات
-        const pack2 = deriveFromKarat(24, prices[24]);
-        for (const k of KARATS) if (prices[k] == null) { prices[k] = pack2[k]; derived[k] = true; }
-      }
+    .controls{
+      display:grid; gap:12px; grid-template-columns: 1fr;
     }
-
-    const allOk = KARATS.every(k => Number.isFinite(prices[k])) && Number.isFinite(ounce ?? NaN) ;
-    const partial = !(KARATS.every(k => Number.isFinite(prices[k])) && Number.isFinite(ounce));
-
-    if (strict && partial) {
-      const diag = debug ? {
-        anchorsFound: Object.fromEntries(KARATS.map(k => [k, !!karatAnchor(k).exec(text)])),
-        ounceAnchorFound: !!ounceAnchor.exec(text),
-        head: text.slice(0, 600),
-        numbersDetectedSample: Array.from(text.matchAll(new RegExp(numberRe, "g"))).slice(0,20).map(m=>m[0]),
-      } : undefined;
-      return json({ error: "Failed to parse gold prices from source page", note: "Partial extract or site format changed.", sourceStatus, ...(diag?{debug:diag}:{}) }, 500);
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .row > *{flex:1 1 auto}
+    label{font-size:13px; color:var(--muted)}
+    input[type="text"], select{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.1);
+      background:transparent; color:var(--text); outline:none;
     }
+    input[type="text"]:focus, select:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--ring)}
+    .switch{display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08)}
+    .switch input{inline-size:18px; block-size:18px}
+    button{
+      padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:var(--accent); color:#fff; cursor:pointer;
+      font-weight:600;
+    }
+    button.secondary{background:transparent; color:var(--text)}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .grid{
+      display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+      margin-top:14px;
+    }
+    .card{padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))}
+    .card h3{margin:0 0 6px 0; font-size:16px}
+    .big{font-size:28px; font-variant-numeric:tabular-nums; letter-spacing:.3px}
+    .sub{font-size:12px; color:var(--muted)}
+    .badges{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+    .badge{font-size:11px; padding:4px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.1)}
+    .ok{background:rgba(45,212,191,0.15); border-color:rgba(45,212,191,0.35)}
+    .warn{background:rgba(255,200,87,0.15); border-color:rgba(255,200,87,0.35)}
+    .err{background:rgba(255,84,112,0.15); border-color:rgba(255,84,112,0.35)}
+    .status{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px}
+    .chip{font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.1)}
+    .chip .dot{inline-size:8px; block-size:8px; border-radius:50%; display:inline-block; margin-inline:6px}
+    .dot.ok{background:var(--success)} .dot.warn{background:var(--warning)} .dot.err{background:var(--danger)}
+    .footer{margin-top:18px; font-size:12px; color:var(--muted)}
+    .error{margin-top:10px; padding:12px; border-radius:10px; border:1px solid rgba(255,84,112,0.3); background:rgba(255,84,112,0.08); color:#ffdfe6}
+    .row.compact > *{flex:0 0 auto}
+    a{color:var(--accent); text-decoration:none} a:hover{text-decoration:underline}
+    .skeleton{background:linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02), rgba(255,255,255,0.06)); background-size:200% 100%; animation:s 1.2s linear infinite}
+    @keyframes s { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>أسعار الذهب – دار السبائك</h1>
+      <div class="muted" id="clock" aria-live="polite"></div>
+    </header>
 
-    const result = {
-      k24: prices[24] ?? null,
-      k22: prices[22] ?? null,
-      k21: prices[21] ?? null,
-      k18: prices[18] ?? null,
-      ounce: ounce ?? null,
-      currency: "KWD",
-      unit: "gram",
-      ounceUnit: "troy_ounce",
-      source: usedURL || sourceURL,
-      updatedAt: new Date().toISOString(),
-      sourceStatus,
-      partial,
-      measured,
-      derived,
+    <section class="panel controls" aria-label="إعدادات الاتصال">
+      <div>
+        <label for="endpoint">رابط الخدمة (Cloudflare Worker)</label>
+        <input id="endpoint" type="text" placeholder="https://your-worker.workers.dev/" value="https://kadri.sfa7000.workers.dev/">
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="page">صفحة داخل الموقع (اختياري)</label>
+          <input id="page" type="text" placeholder="/اسعار-الذهب">
+        </div>
+        <div>
+          <label for="interval">تحديث تلقائي</label>
+          <select id="interval">
+            <option value="0">متوقف</option>
+            <option value="30">كل 30 ثانية</option>
+            <option value="60" selected>كل دقيقة</option>
+            <option value="120">كل دقيقتين</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row compact">
+        <label class="switch"><input id="opt-strict" type="checkbox"> صارم (strict)</label>
+        <label class="switch"><input id="opt-derive" type="checkbox" checked> اشتقاق المفقود (derive)</label>
+        <label class="switch"><input id="opt-nocache" type="checkbox"> تجاهل كاش المصدر</label>
+        <button id="btn-refresh">تحديث الآن</button>
+        <button id="btn-json" class="secondary" title="فتح JSON في لسان جديد">عرض JSON</button>
+      </div>
+
+      <div class="status" id="status">
+        <span class="chip"><span class="dot warn" id="dot"></span><span id="status-text">بانتظار الطلب…</span></span>
+        <span class="chip">المصدر: <a id="src-link" href="#" target="_blank" rel="noreferrer">—</a></span>
+        <span class="chip">HTTP: <span id="http">—</span></span>
+        <span class="chip">آخر تحديث: <span id="updated">—</span></span>
+        <span class="chip">الوضع: <span id="partial">—</span></span>
+      </div>
+
+      <div id="error" class="error" hidden></div>
+    </section>
+
+    <section class="grid" id="cards" aria-label="الأسعار">
+      <!-- بطاقات ستُملأ برمجيًا -->
+    </section>
+
+    <div class="footer">
+      الوحدة: دينار كويتي/غرام، والأونصة: دينار كويتي/أونصة تروي. القيم قد تكون مشتقة إذا لم تتوفر نصًا على الموقع.
+    </div>
+  </div>
+
+  <script>
+    // عناصر DOM
+    const els = {
+      endpoint: document.getElementById('endpoint'),
+      page: document.getElementById('page'),
+      interval: document.getElementById('interval'),
+      strict: document.getElementById('opt-strict'),
+      derive: document.getElementById('opt-derive'),
+      nocache: document.getElementById('opt-nocache'),
+      btnRefresh: document.getElementById('btn-refresh'),
+      btnJSON: document.getElementById('btn-json'),
+      statusText: document.getElementById('status-text'),
+      dot: document.getElementById('dot'),
+      srcLink: document.getElementById('src-link'),
+      http: document.getElementById('http'),
+      updated: document.getElementById('updated'),
+      partial: document.getElementById('partial'),
+      error: document.getElementById('error'),
+      cards: document.getElementById('cards'),
+      clock: document.getElementById('clock'),
     };
 
-    return new Response(JSON.stringify(result), {
-      status: partial ? 206 : 200,
-      headers: { "Content-Type":"application/json;charset=UTF-8", "Cache-Control":"public, max-age=60, s-maxage=120", ...CORS }
+    const numFmt = (n) => {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      try { return n.toLocaleString('ar', { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+      catch { return (Math.round(n*1000)/1000).toString(); }
+    };
+
+    function savePrefs(){
+      const prefs = {
+        endpoint: els.endpoint.value.trim(),
+        page: els.page.value.trim(),
+        interval: els.interval.value,
+        strict: els.strict.checked,
+        derive: els.derive.checked,
+        nocache: els.nocache.checked,
+      };
+      localStorage.setItem('gold-ui-prefs', JSON.stringify(prefs));
+      return prefs;
+    }
+    function loadPrefs(){
+      try {
+        const p = JSON.parse(localStorage.getItem('gold-ui-prefs') || '{}');
+        if (p.endpoint) els.endpoint.value = p.endpoint;
+        if (p.page) els.page.value = p.page;
+        if (p.interval) els.interval.value = p.interval;
+        if (typeof p.strict === 'boolean') els.strict.checked = p.strict;
+        if (typeof p.derive === 'boolean') els.derive.checked = p.derive;
+        if (typeof p.nocache === 'boolean') els.nocache.checked = p.nocache;
+      } catch {}
+    }
+    loadPrefs();
+
+    function setStatus(kind, text){
+      els.statusText.textContent = text;
+      if (kind === 'ok'){ els.dot.className = 'dot ok'; }
+      else if (kind === 'warn'){ els.dot.className = 'dot warn'; }
+      else { els.dot.className = 'dot err'; }
+    }
+
+    function buildURL(openInNewTab = false){
+      const base = els.endpoint.value.trim().replace(/\s+/g,'');
+      const u = new URL(base);
+      if (els.page.value.trim()) u.searchParams.set('page', els.page.value.trim());
+      u.searchParams.set('strict', els.strict.checked ? '1' : '0');
+      u.searchParams.set('derive', els.derive.checked ? '1' : '0');
+      if (els.nocache.checked) u.searchParams.set('nocache','1');
+      return u.toString();
+    }
+
+    function renderSkeleton(){
+      els.cards.innerHTML = `
+        ${['24','22','21','18','أونصة'].map(k => `
+          <div class="card">
+            <h3>${k === 'أونصة' ? 'سعر الأونصة' : 'عيار ' + k}</h3>
+            <div class="big skeleton" style="height:34px;border-radius:8px"></div>
+            <div class="sub skeleton" style="height:14px;width:60%;margin-top:8px;border-radius:6px"></div>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    function renderData(d){
+      const hasMD = d && typeof d.measured === 'object' && typeof d.derived === 'object';
+      const mkBadges = (key) => {
+        if (!hasMD) return '';
+        const m = d.measured[key] ? '<span class="badge ok">مقاس</span>' : '';
+        const r = d.derived[key] ? '<span class="badge warn">مشتق</span>' : '';
+        return `<div class="badges">${m || r ? (m + r) : ''}</div>`;
+        };
+      els.cards.innerHTML = `
+        <div class="card">
+          <h3>عيار 24</h3>
+          <div class="big">${numFmt(d.k24)} <span class="sub">د.ك / غ</span></div>
+          ${mkBadges('24')}
+        </div>
+        <div class="card">
+          <h3>عيار 22</h3>
+          <div class="big">${numFmt(d.k22)} <span class="sub">د.ك / غ</span></div>
+          ${mkBadges('22')}
+        </div>
+        <div class="card">
+          <h3>عيار 21</h3>
+          <div class="big">${numFmt(d.k21)} <span class="sub">د.ك / غ</span></div>
+          ${mkBadges('21')}
+        </div>
+        <div class="card">
+          <h3>عيار 18</h3>
+          <div class="big">${numFmt(d.k18)} <span class="sub">د.ك / غ</span></div>
+          ${mkBadges('18')}
+        </div>
+        <div class="card">
+          <h3>سعر الأونصة</h3>
+          <div class="big">${numFmt(d.ounce)} <span class="sub">د.ك / أونصة تروي</span></div>
+          ${mkBadges('ounce')}
+        </div>
+      `;
+    }
+
+    function showError(msg, details){
+      els.error.hidden = false;
+      els.error.innerHTML = `<strong>خطأ:</strong> ${msg || 'حدث خطأ غير متوقع.'}${details ? `<br><small class="muted">${details}</small>` : ''}`;
+      setStatus('err', 'فشل الجلب');
+    }
+
+    function clearError(){ els.error.hidden = true; els.error.textContent = ''; }
+
+    function fmtTime(iso){
+      if (!iso) return '—';
+      try {
+        const d = new Date(iso);
+        const f = new Intl.DateTimeFormat('ar', { dateStyle:'medium', timeStyle:'medium' });
+        return f.format(d);
+      } catch { return iso; }
+    }
+
+    async function fetchNow(){
+      clearError(); renderSkeleton(); savePrefs();
+      const url = buildURL();
+      els.btnRefresh.disabled = true;
+      setStatus('warn','جارٍ الجلب…');
+
+      try {
+        const res = await fetch(url, { method:'GET' });
+        els.http.textContent = res.status;
+        let data;
+        try { data = await res.json(); } catch { data = null; }
+
+        // عالج أخطاء الـJSON القياسية من العامل
+        if (!res.ok || (data && data.error)) {
+          const note = data && (data.note || data.error);
+          showError(data?.error || `HTTP ${res.status}`, note);
+          els.srcLink.href = data?.source || buildURL(true);
+          els.srcLink.textContent = data?.source || '—';
+          els.updated.textContent = data?.updatedAt ? fmtTime(data.updatedAt) : '—';
+          els.partial.textContent = '—';
+          return;
+        }
+
+        // نجاح
+        setStatus('ok','تم التحديث');
+        els.srcLink.href = data.source || '#';
+        els.srcLink.textContent = data.source || '—';
+        els.updated.textContent = data.updatedAt ? fmtTime(data.updatedAt) : '—';
+        els.partial.textContent = data.partial ? 'جزئي' : 'كامل';
+        els.partial.parentElement.className = 'chip ' + (data.partial ? 'warn' : '');
+
+        renderData(data);
+      } catch (err){
+        showError('تعذر الاتصال بالخدمة', String(err?.message || err));
+      } finally {
+        els.btnRefresh.disabled = false;
+      }
+    }
+
+    // JSON في لسان جديد مع نفس البراميتر
+    function openJSON(){
+      const u = buildURL(true);
+      window.open(u, '_blank', 'noopener,noreferrer');
+    }
+
+    // ساعة بسيطة
+    setInterval(() => {
+      try {
+        els.clock.textContent = new Intl.DateTimeFormat('ar', { hour:'2-digit', minute:'2-digit', second:'2-digit' }).format(new Date());
+      } catch {
+        const d = new Date();
+        els.clock.textContent = d.toLocaleTimeString();
+      }
+    }, 500);
+
+    // ربط الأحداث
+    els.btnRefresh.addEventListener('click', fetchNow);
+    els.btnJSON.addEventListener('click', openJSON);
+    els.interval.addEventListener('change', setupAuto);
+    [els.endpoint, els.page, els.strict, els.derive, els.nocache].forEach(el => {
+      el.addEventListener('change', () => { savePrefs(); });
+      el.addEventListener('blur', () => { savePrefs(); });
     });
-  }
-};
+
+    // تحديث تلقائي
+    let timer = null;
+    function setupAuto(){
+      if (timer) clearInterval(timer);
+      const sec = parseInt(els.interval.value, 10) || 0;
+      if (sec > 0){
+        timer = setInterval(fetchNow, sec*1000);
+      }
+    }
+
+    // أول تحميل
+    renderSkeleton();
+    fetchNow();
+    setupAuto();
+  </script>
+</body>
+</html>
