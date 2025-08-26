@@ -1,165 +1,348 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>أسعار الذهب بالدينار الكويتي — 24/22/21/18</title>
-  <style>
-  :root{--bg:#f7f7f7;--card:#fff;--text:#111;--muted:#6b7280;--border:#e5e7eb;--danger:#b91c1c}
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
-  .container{max-width:980px;margin:24px auto;padding:16px}
-  h1{margin:0 0 6px;text-align:center;font-size:clamp(22px,4vw,32px)}
-  .meta{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;color:var(--muted);margin:0 0 16px}
-  .meta .chip{background:#eef2ff;border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:12px}
-  .layout{display:grid;grid-template-columns:1fr;gap:14px}
-  @media(min-width:900px){.layout{grid-template-columns:1fr 280px}}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px}
-  .price-table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-  .price-table th,.price-table td{padding:12px 14px;border-bottom:1px solid var(--border);text-align:center}
-  .price-table thead th{background:#f3f4f6;font-weight:600}
-  .price-table tbody tr:last-child td{border-bottom:none}
-  .err{margin-top:12px;color:var(--danger);text-align:center;direction:ltr;white-space:pre-wrap}
-  .widget-title{margin:6px 8px 10px;font-size:14px;color:var(--muted);text-align:center}
-  .actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
-  button{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
-  button:disabled{opacity:.6;cursor:not-allowed}
-  </style>
-</head>
-<body>
-  <main class="container">
-    <h1>أسعار الذهب بالدينار الكويتي</h1>
-    <div class="meta">
-      <span class="chip">تحديث كل <strong>10</strong> ثوانٍ</span>
-      <span class="chip">آخر تحديث: <span id="lastUpdate">—</span></span>
-      <span class="chip">المصدر: <span id="src">—</span></span>
-    </div>
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
 
-    <section class="layout">
-      <!-- يسار: جدول العيارات -->
-      <div class="card">
-        <table class="price-table" aria-describedby="err">
-          <thead><tr><th>العيار</th><th>السعر للغرام (د.ك)</th></tr></thead>
-          <tbody>
-            <tr><td>عيار 24</td><td id="k24">—</td></tr>
-            <tr><td>عيار 22</td><td id="k22">—</td></tr>
-            <tr><td>عيار 21</td><td id="k21">—</td></tr>
-            <tr><td>عيار 18</td><td id="k18">—</td></tr>
-          </tbody>
-        </table>
-
-        <div class="actions">
-          <button id="refreshBtn" type="button">تحديث الآن</button>
-        </div>
-
-        <p id="err" class="err" role="status" aria-live="polite"></p>
-      </div>
-
-      <!-- يمين: ويدجت TradingView (عرض فقط) -->
-      <aside class="card">
-        <div class="widget-title">سعر الذهب المباشر (XAUUSD) — عرض فقط</div>
-        <div class="tradingview-widget-container">
-          <div class="tradingview-widget-container__widget"></div>
-          <script async type="text/javascript"
-            src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js">
-          {
-            "symbol": "OANDA:XAUUSD",
-            "locale": "ar",
-            "dateRange": "1D",
-            "colorTheme": "light",
-            "isTransparent": false,
-            "autosize": true,
-            "width": 260,
-            "height": 300
-          }
-          </script>
-        </div>
-      </aside>
-    </section>
-  </main>
-
-  <script>
-    // ——— الإعداد ———
-    const WORKER_JSON = "https://husseinkadri.sfa7000.workers.dev/";
-    const BASE_MS = 10_000;
-    const $$ = (id) => document.getElementById(id);
-    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(3) : "—");
-
-    let paused = false;   // نوقف الجلب حين التبويب غير مرئي
-    let nextMs = BASE_MS; // backoff تلقائي
-    let timer = null;
-
-    // ——— أدوات عرض ———
-    function stamp(){
-      const d=new Date();
-      $$("lastUpdate").textContent =
-        `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}:${String(d.getSeconds()).padStart(2,"0")}`;
+    // --- CORS & Health ---
+    const CORS = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, *",
+      "Vary": "Origin",
+    };
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (path === "/health") return new Response("OK", { status: 200, headers: { "Content-Type":"text/plain; charset=UTF-8", ...CORS } });
+    if (request.method !== "GET") {
+      return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
+        status: 405, headers: { "Content-Type":"application/json;charset=UTF-8", ...CORS }
+      });
     }
-    function fill({k24, k22, k21, k18}){
-      $$("k24").textContent = fmt(k24);
-      $$("k22").textContent = fmt(k22);
-      $$("k21").textContent = fmt(k21);
-      $$("k18").textContent = fmt(k18);
-    }
-    function setErr(msg){ $$("err").textContent = msg || ""; }
 
-    // ——— الجلب مع مهلة ———
-    async function fetchWithTimeout(resource, options = {}, timeoutMs = 8000) {
-      const ctrl = new AbortController();
-      const id = setTimeout(() => ctrl.abort("timeout"), timeoutMs);
-      try {
-        const r = await fetch(resource, { ...options, signal: ctrl.signal });
-        return r;
-      } finally {
-        clearTimeout(id);
+    // --- إعدادات ---
+    const SOURCE_ORIGIN = "https://daralsabaek.com";
+    const sourceURL = SOURCE_ORIGIN + "/";
+    const strict   = url.searchParams.get("strict") !== "0";   // افتراضي: صارم
+    const derive   = url.searchParams.get("derive") !== "0";   // افتراضي: اشتقاق مُفعّل
+    const debug    = url.searchParams.has("debug");            // يعيد نوافذ نص للتشخيص
+    const noCache  = url.searchParams.get("nocache") === "1";  // تعطيل كاش المصدر
+    const page     = url.searchParams.get("page");             // لتجربة صفحة محددة داخل الموقع
+
+    // سنركّز على العيارات الشائعة في الكويت
+    const KARATS = [24, 22, 21, 18];
+    const RATIOS = { 24:1, 22:22/24, 21:21/24, 18:18/24 };
+    const TROY_OUNCE = 31.1034768;
+
+    const json = (data, status=200) =>
+      new Response(JSON.stringify(data), { status, headers: { "Content-Type":"application/json;charset=UTF-8", ...CORS } });
+
+    // --- أدوات نص ---
+    const DIG = "0-9٠-٩۰-۹";
+    const numberRe = `[${DIG}][${DIG}\\s,\\.\\u066B\\u066C\\u00A0\\u2007\\u2009\\u202F]*[${DIG}]`;
+    const currencyRe = `(?:KWD|KD|K\\.?D\\.?|kwd|kd|د\\.?\\s*ك|دك|دينار(?:\\s*كويتي|\\s*كويتى)?)`;
+    const numWithCurr = new RegExp(`(?:${currencyRe}\\s*)?(${numberRe})(?:\\s*${currencyRe})?`, "ig");
+
+    function normalizeDigits(str) {
+      const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9","۰":"0","۱":"1","۲":"2","۳":"3","۴":"4","۵":"5","۶":"6","۷":"7","۸":"8","۹":"9" };
+      return String(str).replace(/[٠-٩۰-۹]/g, (d) => map[d] ?? d);
+    }
+    function parsePriceSmart(raw) {
+      if (!raw) return null;
+      let s = normalizeDigits(raw)
+        .replace(/[\u00A0\u2007\u2009\u202F]/g, " ")
+        .replace(/\u066B/g, ".") // Arabic decimal
+        .replace(/\u066C/g, ",") // Arabic thousands
+        .trim();
+
+      const hasDot = s.includes("."), hasComma = s.includes(",");
+      if (hasComma && !hasDot) {
+        s = s.replace(/,/g, ".");            // comma = decimal
+      } else if (hasDot && hasComma) {
+        const lastDot = s.lastIndexOf("."), lastComma = s.lastIndexOf(",");
+        if (lastDot > lastComma) s = s.replace(/,/g, "");  // dot = decimal
+        else { s = s.replace(/\./g, ""); s = s.replace(/,/g, "."); } // comma = decimal
       }
+      s = s.replace(/[^\d.]/g, "");
+      if (!s) return null;
+      const v = parseFloat(s);
+      return Number.isFinite(v) && v > 2 && v < 200 ? v : null; // نطاق منطقي للغرام بالدينار
     }
 
-    async function fetchRates(){
-      const url = WORKER_JSON + "?_=" + Date.now();
-      const r = await fetchWithTimeout(url, { cache:"no-store", mode:"cors" });
-      const text = await r.text(); let data;
-      try { data = JSON.parse(text); } catch { data = { raw:text }; }
-      return { ok: r.ok, status: r.status, data };
+    function sanitizeTextKeepScripts(html) {
+      const scripts = Array.from(html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)).map(m => m[1] || "");
+      const text = html
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<script[\s\S]*?<\/script>/gi, " __SCRIPT__ ")
+        .replace(/<[^>]*>/g, " ")
+        .replace(/[\u200E\u200F\u202A-\u202E]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return { text, scripts };
     }
 
-    async function tick(force=false){
-      if (paused && !force) { schedule(); return; }
-      try{
-        $$("refreshBtn").disabled = true;
-        const res = await fetchRates();
-        const rates = res.data?.rates;
-        if (!res.ok || !rates || ![rates.k24, rates.k22, rates.k21, rates.k18].every(Number.isFinite)) {
-          throw new Error(`HTTP ${res.status} :: ${JSON.stringify(res.data).slice(0,280)}`);
+    function arabicDigits(n, persian=false) {
+      const map = persian ? ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"] : ["٠","١","٢","٣","٤","٥","٦","٧","٨","٩"];
+      return String(n).replace(/\d/g, d => map[+d]);
+    }
+
+    const anchorCache = new Map();
+    function karatAnchor(karat) {
+      if (anchorCache.has(karat)) return anchorCache.get(karat);
+      const k1 = String(karat), k2 = arabicDigits(karat,false), k3 = arabicDigits(karat,true);
+      const re = new RegExp(
+        [
+          `(?:سعر\\s*)?(?:عيار|قيراط|karat|ذهب|gold)\\s*:?\\s*(?:${k1}|${k2}|${k3})\\b`,
+          `\\b(?:${k1}|${k2}|${k3})\\s*(?:k|K|عيار|قيراط)\\b`,
+          `\\b(?:جرام|غرام|gram|g)\\s*(?:${k1}|${k2}|${k3})\\b`,
+          `\\b(?:k|karat|grade|karat_)\\s*[_-]?\\s*(?:${k1}|${k2}|${k3})\\b`,
+          `\\b(?:${k1}|${k2}|${k3})\\s*[_-]?(?:k|karat)\\b`,
+        ].join("|"), "i"
+      );
+      anchorCache.set(karat, re);
+      return re;
+    }
+
+    const ounceAnchor = new RegExp(
+      [
+        `(?:سعر\\s*)?(?:أونصة|اونصة|أوقية|اوقية)`,
+        `\\b(?:ounce|troy\\s*ounce|oz)\\b`,
+      ].join("|"), "i"
+    );
+
+    function findNearestNumber(text, idx, span = 500) {
+      // يمين
+      const right = text.slice(idx, Math.min(text.length, idx + span));
+      numWithCurr.lastIndex = 0;
+      const mr = numWithCurr.exec(right);
+      const rightVal = mr ? parsePriceSmart(mr[1]) : null;
+
+      // يسار (نلتقط آخر رقم قبل المرساة)
+      const leftStart = Math.max(0, idx - span);
+      const left = text.slice(leftStart, idx);
+      numWithCurr.lastIndex = 0;
+      let ml, lastM = null;
+      while ((ml = numWithCurr.exec(left))) lastM = ml;
+      const leftVal = lastM ? parsePriceSmart(lastM[1]) : null;
+
+      if (rightVal != null && leftVal != null) {
+        const distRight = mr.index;
+        const distLeft = left.length - (lastM.index + lastM[0].length);
+        return distRight <= distLeft ? rightVal : leftVal;
+      }
+      return rightVal ?? leftVal ?? null;
+    }
+
+    function deriveFromKarat(baseK, baseVal) {
+      const pack = {};
+      for (const k of KARATS) pack[k] = +(baseVal * (RATIOS[k] / RATIOS[baseK])).toFixed(3);
+      return pack;
+    }
+
+    function round3(n){ return Math.round(n*1000)/1000; }
+
+    function globalFit(text) {
+      const all = Array.from(text.matchAll(new RegExp(numberRe, "g")))
+        .map(m => parsePriceSmart(m[0]))
+        .filter(v => v != null);
+      if (!all.length) return null;
+      // ابحث عن قيمة تصلح أن تكون 24K، ثم اشتق الباقي واختر أقرب تطابق
+      const uniq = [];
+      for (const v of all.sort((a,b)=>b-a)) if (!uniq.some(u => Math.abs(u - v) < 0.02)) uniq.push(v);
+      let bestBase = null, bestScore = 1e9;
+      for (const base of uniq) {
+        const expected = { 24: base, 22: base*RATIOS[22], 21: base*RATIOS[21], 18: base*RATIOS[18] };
+        let score = 0;
+        for (const k of KARATS) {
+          let err = Math.min(...uniq.map(u => Math.abs(u - expected[k]) / expected[k]));
+          score += err;
         }
-        fill(rates);
-        $$("src").textContent = (res.data.source || "").replace(/^https?:\/\//, "");
-        setErr(""); stamp();
-        nextMs = BASE_MS; // نجاح: أعد ضبط الفاصل
+        if (score < bestScore) { bestScore = score; bestBase = base; }
+      }
+      if (bestBase == null || bestScore > 1.2) return null;
+      return deriveFromKarat(24, bestBase);
+    }
 
-      } catch(e){
-        setErr("Error: " + (e?.message || e));
-        $$("src").textContent = "—";
-        nextMs = Math.min(nextMs * 2, 60_000); // backoff حتى 60s
-      } finally {
-        $$("refreshBtn").disabled = false;
-        schedule();
+    // --- Fetch HTML ---
+    async function fetchHTML(u) {
+      const resp = await fetch(u, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; GoldScraper/1.0; +https://example.com)",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "ar,en;q=0.8",
+          ...(noCache ? { "Cache-Control": "no-cache" } : {}),
+        },
+        cf: noCache ? undefined : { cacheEverything: true, cacheTtl: 120 },
+      });
+      return resp;
+    }
+
+    let html, sourceStatus = null, usedURL = null;
+    try {
+      const startURL = page ? new URL(page, SOURCE_ORIGIN).toString() : sourceURL;
+      const r = await fetchHTML(startURL);
+      sourceStatus = r.status;
+      if (!r.ok) throw new Error(`Bad upstream status ${r.status}`);
+      html = await r.text();
+      usedURL = startURL;
+    } catch (e) {
+      return json({ error: "Unable to fetch source", details: String(e?.message || e) }, 502);
+    }
+
+    const { text, scripts } = sanitizeTextKeepScripts(html);
+
+    // --- استخراج من النص ---
+    const prices = { 24:null, 22:null, 21:null, 18:null };
+    const measured = { 24:false, 22:false, 21:false, 18:false, ounce:false };
+    const derived  = { 24:false, 22:false, 21:false, 18:false, ounce:false };
+
+    for (const k of KARATS) {
+      const re = karatAnchor(k);
+      const m = re.exec(text);
+      if (m) {
+        const v = findNearestNumber(text, m.index, 550);
+        if (v != null) { prices[k] = v; measured[k] = true; }
       }
     }
 
-    function schedule(){ clearTimeout(timer); timer = setTimeout(() => tick(), nextMs); }
+    // --- محاولة داخل السكربتات (state/JSON) ---
+    if (!Object.values(measured).some(Boolean) && scripts.length) {
+      for (const s of scripts.slice(0, 12)) { // سقف معقول
+        for (const k of KARATS) {
+          if (prices[k] != null) continue;
+          const re = karatAnchor(k);
+          const m = re.exec(s);
+          if (m) {
+            // التقط أقرب رقم في هذا السكربت
+            let v = null;
+            // رقم بعد المفتاح
+            numWithCurr.lastIndex = m.index;
+            const mr = numWithCurr.exec(s);
+            if (mr) v = parsePriceSmart(mr[1]);
+            // أو قبله
+            if (v == null) {
+              let ml, lastM = null;
+              numWithCurr.lastIndex = 0;
+              while ((ml = numWithCurr.exec(s)) && ml.index < m.index) lastM = ml;
+              if (lastM) v = parsePriceSmart(lastM[1]);
+            }
+            if (v != null) { prices[k] = v; measured[k] = true; }
+          }
+        }
+      }
+    }
 
-    // إيقاف/استئناف عند تغيّر الرؤية
-    document.addEventListener("visibilitychange", () => {
-      paused = document.hidden;
-      if (!paused) { nextMs = BASE_MS; tick(true); }
+    // --- JSON-LD ---
+    if (!Object.values(measured).some(Boolean)) {
+      const ldScripts = Array.from(html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)).map(m => m[1]);
+      for (const raw of ldScripts) {
+        try {
+          const data = JSON.parse(raw);
+          const arr = Array.isArray(data) ? data : [data];
+          for (const obj of arr) {
+            const stack = [obj];
+            while (stack.length) {
+              const cur = stack.pop();
+              if (!cur || typeof cur !== "object") continue;
+              if (typeof cur.price !== "undefined") {
+                const v = parsePriceSmart(String(cur.price));
+                // نعتبره أقرب لـ 24 إن لم نجد شيء
+                if (v != null && prices[24] == null) { prices[24] = v; measured[24] = true; }
+              }
+              for (const k of Object.keys(cur)) {
+                const val = cur[k];
+                if (val && typeof val === "object") stack.push(val);
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // --- أونصة (من النص) ---
+    let ounce = null;
+    {
+      const m = ounceAnchor.exec(text);
+      if (m) {
+        const v = findNearestNumber(text, m.index, 600);
+        if (v != null) { ounce = v; measured.ounce = true; }
+      }
+      // جرب السكربتات لو ما لقينا
+      if (ounce == null && scripts.length) {
+        for (const s of scripts.slice(0, 12)) {
+          const ms = ounceAnchor.exec(s);
+          if (!ms) continue;
+          numWithCurr.lastIndex = ms.index;
+          const mr = numWithCurr.exec(s);
+          let v = mr ? parsePriceSmart(mr[1]) : null;
+          if (v == null) {
+            let ml, lastM = null;
+            numWithCurr.lastIndex = 0;
+            while ((ml = numWithCurr.exec(s)) && ml.index < ms.index) lastM = ml;
+            if (lastM) v = parsePriceSmart(lastM[1]);
+          }
+          if (v != null) { ounce = v; measured.ounce = true; break; }
+        }
+      }
+    }
+
+    // --- اشتقاق مفقود ---
+    if (derive) {
+      // من 24 -> بقية العيارات
+      const baseK = KARATS.find(k => prices[k] != null);
+      if (baseK != null) {
+        const pack = deriveFromKarat(baseK, prices[baseK]);
+        for (const k of KARATS) if (prices[k] == null) { prices[k] = pack[k]; derived[k] = true; }
+      } else {
+        // لو ماعندنا شيء: global fit
+        const gf = globalFit(text);
+        if (gf) for (const k of KARATS) { if (prices[k] == null) { prices[k] = round3(gf[k]); derived[k] = true; } }
+      }
+
+      // اشتقاق الأونصة ↔ 24K
+      if (ounce == null && prices[24] != null) {
+        ounce = round3(prices[24] * TROY_OUNCE);
+        derived.ounce = true;
+      } else if (ounce != null && prices[24] == null) {
+        prices[24] = round3(ounce / TROY_OUNCE);
+        derived[24] = true;
+        // وبعدها اشتق باقي العيارات
+        const pack2 = deriveFromKarat(24, prices[24]);
+        for (const k of KARATS) if (prices[k] == null) { prices[k] = pack2[k]; derived[k] = true; }
+      }
+    }
+
+    const allOk = KARATS.every(k => Number.isFinite(prices[k])) && Number.isFinite(ounce ?? NaN) ;
+    const partial = !(KARATS.every(k => Number.isFinite(prices[k])) && Number.isFinite(ounce));
+
+    if (strict && partial) {
+      const diag = debug ? {
+        anchorsFound: Object.fromEntries(KARATS.map(k => [k, !!karatAnchor(k).exec(text)])),
+        ounceAnchorFound: !!ounceAnchor.exec(text),
+        head: text.slice(0, 600),
+        numbersDetectedSample: Array.from(text.matchAll(new RegExp(numberRe, "g"))).slice(0,20).map(m=>m[0]),
+      } : undefined;
+      return json({ error: "Failed to parse gold prices from source page", note: "Partial extract or site format changed.", sourceStatus, ...(diag?{debug:diag}:{}) }, 500);
+    }
+
+    const result = {
+      k24: prices[24] ?? null,
+      k22: prices[22] ?? null,
+      k21: prices[21] ?? null,
+      k18: prices[18] ?? null,
+      ounce: ounce ?? null,
+      currency: "KWD",
+      unit: "gram",
+      ounceUnit: "troy_ounce",
+      source: usedURL || sourceURL,
+      updatedAt: new Date().toISOString(),
+      sourceStatus,
+      partial,
+      measured,
+      derived,
+    };
+
+    return new Response(JSON.stringify(result), {
+      status: partial ? 206 : 200,
+      headers: { "Content-Type":"application/json;charset=UTF-8", "Cache-Control":"public, max-age=60, s-maxage=120", ...CORS }
     });
-
-    // زر تحديث يدوي
-    $$("refreshBtn").addEventListener("click", () => { nextMs = BASE_MS; tick(true); });
-
-    // تشغيل أولي
-    stamp(); tick(true);
-  </script>
-</body>
-</html>
+  }
+};
