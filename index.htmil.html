@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>البيارق الذهبية - أسعار الذهب المباشرة في الكويت</title>
+<style>
+    /* تصميم أنيق بألوان داكنة وذهبية */
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+        margin: 0;
+        padding: 40px 20px;
+        color: #f5f5f5;
+    }
+    h1 {
+        text-align: center;
+        color: #e7c167;
+        margin-bottom: 32px;
+        font-size: 2.3em;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+    }
+    .container {
+        max-width: 680px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 48px 36px;
+        border-radius: 16px;
+        border: 1px solid rgba(210, 184, 99, 0.4);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+    .price-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 0;
+        border-bottom: 1px solid rgba(210,184,99,0.25);
+        font-size: 1.1em;
+    }
+    /* تمييز الصفوف المتناوبة لزيادة وضوح الجدول */
+    .price-row:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .price-row:nth-child(even) {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .price-row:last-child {
+        border-bottom: none;
+    }
+    .label {
+        font-weight: 600;
+        color: #fcd97b;
+        font-size: 1.3em;
+    }
+    .value {
+        font-size: 1.8em;
+        color: #fff5e5;
+        font-weight: 700;
+    }
+    .update-time {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 1em;
+        color: #b9b9b9;
+    }
+
+    /* أخفاء الكتابات السفلية */
+    .note {
+        display: none;
+    }
+    a {
+        color: #f5c86c;
+        text-decoration: underline;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>البيارق الذهبية</h1>
+    <div class="price-row"><span class="label">سعر الأونصة (دينار كويتي):</span><span class="value" id="ounceKWD">–</span></div>
+    <div class="price-row"><span class="label">سعر غرام عيار 24:</span><span class="value" id="gram24">–</span></div>
+    <div class="price-row"><span class="label">سعر غرام عيار 22:</span><span class="value" id="gram22">–</span></div>
+    <div class="price-row"><span class="label">سعر غرام عيار 21:</span><span class="value" id="gram21">–</span></div>
+    <div class="price-row"><span class="label">سعر غرام عيار 18:</span><span class="value" id="gram18">–</span></div>
+    <div class="update-time" id="updateTime">جاري التحديث...</div>
+    <div class="note">
+        <p>تعتمد هذه الصفحة على بيانات الأسعار اللحظية من بورصة Swissquote عبر واجهة الويب العامة وبيانات سعر الصرف من <a href="https://www.exchangerate-api.com/" target="_blank">ExchangeRate-API</a>. يتم تحديث البيانات كل ثانية بشكل آلي بدون تدخل المستخدم. يتم تحويل السعر إلى الغرام باستخدام معيار أن الأونصة الترويسية تساوي 31.1034768 غرام وفقًا لوزارة الخزانة الأمريكية【781259125788291†L114-L116】، كما يتم حساب نقاوة العيارات استنادًا إلى أن القيراط الواحد يساوي جزءًا واحدًا من أصل 24 جزءًا من الذهب الخالص【109621643765384†L772-L783】.</p>
+    </div>
+</div>
+<script>
+const goldUrl = 'https://corsproxy.io/?https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD';
+const ratesUrl = 'https://corsproxy.io/?https://open.er-api.com/v6/latest';
+
+// تحويل العيارات
+function calculateCaratPrice(baseGramPrice, carat) {
+    return baseGramPrice * (carat / 24);
+}
+
+async function fetchGoldPriceUSD() {
+    const response = await fetch(goldUrl);
+    const data = await response.json();
+    // استخراج متوسط السعر بين العرض والطلب لجميع مصادر الأسعار
+    let total = 0;
+    let count = 0;
+    data.forEach(item => {
+        item.spreadProfilePrices.forEach(sp => {
+            total += (sp.bid + sp.ask) / 2;
+            count++;
+        });
+    });
+    const averagePrice = total / count;
+    return averagePrice;
+}
+
+async function fetchUSDtoKWD() {
+    const response = await fetch(ratesUrl);
+    const data = await response.json();
+    const kwdRate = data.rates.KWD;
+    return kwdRate;
+}
+
+async function updatePrices() {
+    try {
+        const [goldUSD, kwdRate] = await Promise.all([fetchGoldPriceUSD(), fetchUSDtoKWD()]);
+        // تحويل السعر إلى دينار كويتي
+        const goldKWD = goldUSD * kwdRate;
+        // تحويل الأونصة إلى الغرام (أونصة ترويسية = 31.1034768 غرام)
+        const pricePerGramUSD = goldUSD / 31.1034768;
+        const pricePerGramKWD = goldKWD / 31.1034768;
+        // حساب أسعار العيارات
+        const price24 = calculateCaratPrice(pricePerGramKWD, 24);
+        const price22 = calculateCaratPrice(pricePerGramKWD, 22);
+        const price21 = calculateCaratPrice(pricePerGramKWD, 21);
+        const price18 = calculateCaratPrice(pricePerGramKWD, 18);
+        // إضافة 50 فلس (0.05 د.ك) لكل غرام
+        const adjusted24 = price24 + 0.05;
+        const adjusted22 = price22 + 0.05;
+        const adjusted21 = price21 + 0.05;
+        const adjusted18 = price18 + 0.05;
+        // تحديث الصفحة
+        document.getElementById('ounceKWD').textContent = goldKWD.toFixed(3) + ' د.ك';
+        document.getElementById('gram24').textContent = adjusted24.toFixed(3) + ' د.ك';
+        document.getElementById('gram22').textContent = adjusted22.toFixed(3) + ' د.ك';
+        document.getElementById('gram21').textContent = adjusted21.toFixed(3) + ' د.ك';
+        document.getElementById('gram18').textContent = adjusted18.toFixed(3) + ' د.ك';
+        const now = new Date();
+        document.getElementById('updateTime').textContent = 'آخر تحديث: ' + now.toLocaleTimeString('ar-KW');
+    } catch (error) {
+        document.getElementById('updateTime').textContent = 'خطأ في جلب البيانات';
+        console.error('حدث خطأ أثناء جلب بيانات الأسعار:', error);
+    }
+}
+
+// التحديث كل ثانية
+updatePrices();
+setInterval(updatePrices, 1000);
+</script>
+</body>
+</html>
