@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8"/>
+<title> - أسعار الذهب المباشرة في الكويت</title>
+<style>
+    /* تصميم أنيق بألوان داكنة وذهبية */
+    body {
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+        /* خلفية زيتية غامقة بتدرجات خضراء داكنة لزيادة الفخامة */
+        background: linear-gradient(to bottom right, #0b1e11, #1c3621, #2f4e2c);
+        margin: 0;
+        padding: 40px 20px;
+        color: #ffffff;
+    }
+    h1 {
+        text-align: center;
+        color: #ffd700;
+        margin-bottom: 36px;
+        font-size: 3em;
+        font-weight: 800;
+        letter-spacing: 2px;
+    }
+    .container {
+        max-width: 680px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 48px 36px;
+        border-radius: 16px;
+        border: 1px solid rgba(210, 184, 99, 0.4);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+    .price-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 0;
+        border-bottom: 1px solid rgba(210,184,99,0.25);
+        font-size: 1.1em;
+    }
+    /* تمييز الصفوف المتناوبة لزيادة وضوح الجدول */
+    .price-row:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .price-row:nth-child(even) {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .price-row:last-child {
+        border-bottom: none;
+    }
+    .label {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 1.3em;
+    }
+    .value {
+        font-size: 1.8em;
+        color: #ffffff;
+        font-weight: 800;
+    }
+
+    /* صف المعلومات في أسفل الجدول يشمل آخر تحديث والساعة الحالية */
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        font-size: 1em;
+        color: #b9b9b9;
+    }
+    /* تحسين مظهر الساعة لتكون أوضح وبارزة قليلاً */
+    #currentTime {
+        font-weight: bold;
+        color: #ffd700;
+        font-size: 1.2em;
+    }
+
+    /* أخفاء الكتابات السفلية */
+    .note {
+        display: none;
+    }
+    a {
+        color: #f5c86c;
+        text-decoration: underline;
+    }
+
+    /* بطاقة مخصصة لعرض سعر الذهب تشبه تصميم TradingView */
+    .gold-widget {
+        /* اجعل خلفية الودج متناسقة مع ألوان الجدول والخلفية */
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(210, 184, 99, 0.4);
+        border-radius: 12px;
+        padding: 8px 16px;
+        margin: 8px 0;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    .gold-widget .widget-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+        color: #ffd700;
+        font-weight: 700;
+    }
+    .gold-widget .widget-header .widget-title {
+        font-size: 0.9em;
+    }
+    .gold-widget .widget-price {
+        display: flex;
+        justify-content: center;
+        align-items: baseline;
+        font-size: 1.6em;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+    .gold-widget .widget-price .currency {
+        margin-right: 8px;
+        font-size: 0.4em;
+        color: #b2b2b2;
+        font-weight: 600;
+    }
+    .gold-widget .widget-change {
+        font-size: 0.9em;
+        text-align: center;
+        display: none;
+    }
+
+table {
+    border: 2px solid gold !important;
+    border-radius: 10px;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.6);
+}
+td, th {
+    border: 1px solid gold !important;
+    padding: 12px;
+    text-align: center;
+    font-size: 22px;
+    text-shadow: 1px 1px 3px black;
+}
+
+.animated-title {
+    font-size: 48px;
+    color: gold;
+    font-weight: bold;
+    text-align: center;
+    animation: shimmer 3s infinite;
+    text-shadow: 0 0 10px #ffd700, 0 0 20px #ffcc00, 0 0 30px #ffcc00;
+}
+
+@keyframes shimmer {
+    0% { text-shadow: 0 0 10px #ffd700; }
+    50% { text-shadow: 0 0 25px #ffcc00, 0 0 40px #ffcc00; }
+    100% { text-shadow: 0 0 10px #ffd700; }
+}
+
+table {
+    position: relative;
+    border: 2px solid gold !important;
+    border-radius: 12px;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+    overflow: hidden;
+}
+
+.table-label-left, .table-label-right {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    font-size: 18px;
+    color: gold;
+    font-weight: bold;
+    text-shadow: 0 0 5px black;
+    letter-spacing: 1px;
+    font-family: 'Cairo', sans-serif;
+}
+
+.table-label-left {
+    left: -45px;
+}
+
+.table-label-right {
+    right: -45px;
+    transform: translateY(-50%) rotate(90deg);
+}
+</style>
+<style>
+  .gold-table {
+    border: 2px solid gold;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    overflow: hidden;
+  }
+
+  .gold-table td {
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+  }
+
+  .gold-table th {
+    background-color: #2e402e;
+    color: gold;
+    padding: 10px;
+    font-size: 1.2em;
+  }
+</style>
+</head>
+<body>
+<div style="text-align: center; margin-top: 20px; margin-bottom: 10px;">
+<h1 class="animated-title" style="font-size: 3em; font-weight: bold; color: gold; font-family: 'Arial Black', sans-serif;">
+    مجوهرات البيارق الذهبية
+  </h1>
+</div>
+<div class="container">
+<!-- ويدج مخصص يعرض سعر الذهب على شكل بطاقة فاخرة -->
+<div class="gold-widget">
+<div class="widget-header">
+<span class="widget-title">GOLD (US$/OZ)</span>
+<span class="widget-icon">💰</span>
+</div>
+<div class="widget-price">
+<span class="currency">USD</span>
+<span class="price" id="goldPriceUSD">--</span>
+</div>
+<div class="widget-change" id="goldChange">--</div>
+</div>
+<!-- صف المعلومات يضم آخر تحديث في اليسار والساعة الحالية في اليمين -->
+<div class="info-row">
+<span id="updateTime">جاري التحديث...</span>
+<span id="currentTime">--:--:--</span>
+</div>
+<!-- تم إزالة صف الأونصة بناءً على طلب المستخدم -->
+<div class="price-row"><span class="label">عيار 24:</span><span class="value" id="gram24">–</span></div>
+<div class="price-row"><span class="label">عيار 22:</span><span class="value" id="gram22">–</span></div>
+<div class="price-row"><span class="label">عيار 21:</span><span class="value" id="gram21">–</span></div>
+<div class="price-row"><span class="label">عيار 18:</span><span class="value" id="gram18">–</span></div>
+<div class="note">
+<p>تعتمد هذه الصفحة على بيانات الأسعار اللحظية من بورصة Swissquote عبر واجهة الويب العامة وبيانات سعر الصرف من <a href="https://www.exchangerate-api.com/" target="_blank">ExchangeRate-API</a>. يتم تحديث البيانات كل ثانية بشكل آلي بدون تدخل المستخدم. يتم تحويل السعر إلى الغرام باستخدام معيار أن الأونصة الترويسية تساوي 31.1034768 غرام وفقًا لوزارة الخزانة الأمريكية【781259125788291†L114-L116】، كما يتم حساب نقاوة العيارات استنادًا إلى أن القيراط الواحد يساوي جزءًا واحدًا من أصل 24 جزءًا من الذهب الخالص【109621643765384†L772-L783】.</p>
+</div>
+</div>
+<script>
+const goldUrl = 'https://corsproxy.io/?https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD';
+const ratesUrl = 'https://corsproxy.io/?https://open.er-api.com/v6/latest';
+
+// متغير لتتبع آخر سعر بالدولار من أجل حساب التغيير
+let prevGoldUSD = null;
+
+// تحويل العيارات
+function calculateCaratPrice(baseGramPrice, carat) {
+    return baseGramPrice * (carat / 24);
+}
+
+async function fetchGoldPriceUSD() {
+    const response = await fetch(goldUrl);
+    const data = await response.json();
+    // استخراج متوسط السعر بين العرض والطلب لجميع مصادر الأسعار
+    let total = 0;
+    let count = 0;
+    data.forEach(item => {
+        item.spreadProfilePrices.forEach(sp => {
+            total += (sp.bid + sp.ask) / 2;
+            count++;
+        });
+    });
+    const averagePrice = total / count;
+    return averagePrice;
+}
+
+async function fetchUSDtoKWD() {
+    const response = await fetch(ratesUrl);
+    const data = await response.json();
+    const kwdRate = data.rates.KWD;
+    return kwdRate;
+}
+
+async function updatePrices() {
+    try {
+        const [goldUSD, kwdRate] = await Promise.all([fetchGoldPriceUSD(), fetchUSDtoKWD()]);
+        // تحويل السعر إلى دينار كويتي
+        const goldKWD = goldUSD * kwdRate;
+        // تحويل الأونصة إلى الغرام (أونصة ترويسية = 31.1034768 غرام)
+        const pricePerGramUSD = goldUSD / 31.1034768;
+        const pricePerGramKWD = goldKWD / 31.1034768;
+        // حساب أسعار العيارات
+        const price24 = calculateCaratPrice(pricePerGramKWD, 24);
+        const price22 = calculateCaratPrice(pricePerGramKWD, 22);
+        const price21 = calculateCaratPrice(pricePerGramKWD, 21);
+        const price18 = calculateCaratPrice(pricePerGramKWD, 18);
+        // إضافة 58 فلس (0.058 د.ك) لكل غرام
+        const adjusted24 = price24 + 0.037;
+        const adjusted22 = price22 + 0.037;
+        const adjusted21 = price21 + 0.037;
+        const adjusted18 = price18 + 0.037;
+        // تحديث الصفحة
+        // لم يعد هناك عنصر للأونصة بعد إزالة الجدول، لذا لا يتم تحديثه
+        document.getElementById('gram24').textContent = adjusted24.toFixed(3) + ' د.ك';
+        document.getElementById('gram22').textContent = adjusted22.toFixed(3) + ' د.ك';
+        document.getElementById('gram21').textContent = adjusted21.toFixed(3) + ' د.ك';
+        document.getElementById('gram18').textContent = adjusted18.toFixed(3) + ' د.ك';
+        const now = new Date();
+        // تحديث نص آخر تحديث والساعة الحالية في الصف السفلي
+        document.getElementById('updateTime').textContent = 'آخر تحديث: ' + now.toLocaleTimeString('ar-KW');
+        document.getElementById('currentTime').textContent = now.toLocaleTimeString('ar-KW');
+
+        // تحديث الودج المخصص لعرض سعر الذهب بالدولار والفارق
+        const priceEl = document.getElementById('goldPriceUSD');
+        const changeEl = document.getElementById('goldChange');
+        if (priceEl && changeEl) {
+            priceEl.textContent = goldUSD.toFixed(3);
+            if (prevGoldUSD !== null) {
+                const diff = goldUSD - prevGoldUSD;
+                const diffPerc = (diff / prevGoldUSD) * 100;
+                const sign = diff >= 0 ? '+' : '';
+                // إظهار الفرق بالنسبة المئوية والقيمة
+                changeEl.textContent = sign + diffPerc.toFixed(2) + '% ' + sign + diff.toFixed(2);
+                changeEl.style.color = diff >= 0 ? '#34c759' : '#ff3b30';
+            } else {
+                changeEl.textContent = '--';
+                changeEl.style.color = '#ffffff';
+            }
+            prevGoldUSD = goldUSD;
+        }
+    } catch (error) {
+        document.getElementById('updateTime').textContent = 'خطأ في جلب البيانات';
+        console.error('حدث خطأ أثناء جلب بيانات الأسعار:', error);
+    }
+}
+
+// التحديث كل ثانية
+updatePrices();
+setInterval(updatePrices, 1000);
+</script>
+</body>
+</html>
