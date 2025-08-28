@@ -1,0 +1,134 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مجوهرات البيارق الذهبية</title>
+  <style>
+    body {
+      background: linear-gradient(to bottom, #0e1a14, #1c2b23);
+      color: #FFD700;
+      font-family: 'Arial Black', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 3em;
+      font-weight: bold;
+      color: #FFD700;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+
+    #clock {
+      text-align: center;
+      font-size: 1.5em;
+      color: #ccc;
+      margin-bottom: 20px;
+    }
+
+    .tradingview-widget-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 25px;
+    }
+
+    .gold-table {
+      width: 90%;
+      margin: 0 auto;
+      border-collapse: collapse;
+      border: 3px solid gold;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .gold-table th, .gold-table td {
+      padding: 25px;
+      font-size: 2.2em;
+      border: 1px solid gold;
+      color: white;
+      text-shadow: 1px 1px 2px black;
+      text-align: center;
+    }
+
+    .gold-table th {
+      background-color: #2d3b2e;
+      color: #FFD700;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>مجوهرات البيارق الذهبية</h1>
+  <div id="clock">الساعة الآن: --:--:--</div>
+
+  <!-- TradingView Widget -->
+  <div class="tradingview-widget-container">
+    <div id="tradingview_1"></div>
+    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+    {
+      "symbol": "OANDA:XAUUSD",
+      "width": "350",
+      "height": "200",
+      "locale": "ar",
+      "dateRange": "1D",
+      "colorTheme": "dark",
+      "trendLineColor": "#FFD700",
+      "underLineColor": "rgba(255,215,0,0.2)",
+      "isTransparent": false,
+      "autosize": false
+    }
+    </script>
+  </div>
+
+  <table class="gold-table">
+    <thead>
+      <tr>
+        <th>العيار</th>
+        <th>السعر (دينار كويتي)</th>
+      </tr>
+    </thead>
+    <tbody id="gold-data">
+      <tr><td>24</td><td>--</td></tr>
+      <tr><td>22</td><td>--</td></tr>
+      <tr><td>21</td><td>--</td></tr>
+      <tr><td>18</td><td>--</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      document.getElementById("clock").innerText = "الساعة الآن: " + now.toLocaleTimeString('ar-KW');
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    async function fetchGoldPrice() {
+      try {
+        const response = await fetch("https://api.exchangerate.host/convert?from=XAU&to=KWD");
+        const data = await response.json();
+        const ouncePriceKWD = data.result;
+        const gramPrice = (ouncePriceKWD / 31.1035);
+
+        const goldTable = document.getElementById("gold-data");
+        goldTable.innerHTML = `
+          <tr><td>24</td><td>${(gramPrice + 0.058).toFixed(3)}</td></tr>
+          <tr><td>22</td><td>${(gramPrice * 0.916 + 0.058).toFixed(3)}</td></tr>
+          <tr><td>21</td><td>${(gramPrice * 0.875 + 0.058).toFixed(3)}</td></tr>
+          <tr><td>18</td><td>${(gramPrice * 0.75 + 0.058).toFixed(3)}</td></tr>
+        `;
+      } catch (err) {
+        console.error("Error fetching gold data:", err);
+      }
+    }
+
+    setInterval(fetchGoldPrice, 10000); // تحديث كل 10 ثوانٍ
+    fetchGoldPrice();
+  </script>
+
+</body>
+</html>
